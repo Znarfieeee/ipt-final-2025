@@ -1,6 +1,6 @@
 import React from "react"
 import { createBrowserRouter, RouterProvider } from "react-router-dom"
-import Landing from "./pages/Login"
+import Login from "./pages/Login"
 
 function App() {
     const router = createBrowserRouter([
