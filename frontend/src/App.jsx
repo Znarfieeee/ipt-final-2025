@@ -1,5 +1,16 @@
+import React from "react"
+import { createBrowserRouter, RouterProvider } from "react-router-dom"
+import Landing from "./pages/Login"
+
 function App() {
-    return <></>;
+    const router = createBrowserRouter([
+        {
+            path: "/",
+            element: <Login />,
+        },
+    ])
+
+    return <RouterProvider router={router} />
 }
 
-export default App;
+export default App
