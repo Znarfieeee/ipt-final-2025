@@ -1,4 +1,4 @@
-import useFakeBackend from "./fakeBackend"
+import { useFakeBackend } from "./fakeBackend"
 import { USE_FAKE_BACKEND } from "./config"
 
 const useBackend = () => {

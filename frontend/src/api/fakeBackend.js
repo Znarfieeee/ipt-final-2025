@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react"
 
-const useFakeBackend = () => {
+export const useFakeBackend = () => {
     const [users] = useState([
         {
             id: 1,

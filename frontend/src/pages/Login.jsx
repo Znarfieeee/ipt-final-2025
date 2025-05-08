@@ -1,75 +1,89 @@
 import React, { useRef } from "react"
-import { Link } from "react-router-dom"
-
+import { useNavigate } from "react-router-dom"
 import { showToast } from "../util/alertHelper"
+import useBackend from "../api/fakeBackendConnection"
+import { useApi } from "../api"
 
 function Login() {
     const emailRef = useRef()
     const passwordRef = useRef()
-
-    // const navigate = useNavigate()
+    const navigate = useNavigate()
+    const backend = useBackend()
+    const api = useApi(backend)
 
     const handleSubmit = async (e) => {
         e.preventDefault()
 
-        // try {
-        //     const formData = {
-        //         email: emailRef.current.value,
-        //         password: passwordRef.current.value,
-        //     }
-        //     // const result = await login(formData)
+        try {
+            const result = await api.login(
+                emailRef.current.value,
+                passwordRef.current.value
+            )
 
-        //     if (result.status === "success") {
-        //         showToast("success", result.message) // Show success toast with the message
-        //         navigate("dashboard")
-        //     } else {
-        //         showToast("error", result.message) // Show error toast with the message
-        //     }
-        // } catch (err) {
-        //     alert("Api Error", err)
-        // }
+            if (result.success) {
+                showToast("success", "Login successful")
+                navigate("/")
+            } else {
+                showToast("error", result.error)
+            }
+        } catch (err) {
+            showToast("error", "Login failed: " + err)
+        }
     }
 
     return (
-        <>
-            <form
-                onSubmit={handleSubmit}
-                className="flex flex-col items-center bg-white p-8 rounded-lg shadow-md w-120 "
-            >
-                <h1 className="text-center font-semibold text-2xl mb-6">
-                    Login
-                </h1>
-                <hr className="bg-[#5b5b5b] w-full" />
-                <div className="flex flex-col gap-2 w-full mt-8">
-                    <label htmlFor="email">Email</label>
-                    <input
-                        type="email"
-                        id="email"
-                        name="email"
-                        required
-                        ref={emailRef}
-                        className="input p-4 h-10 outline-1 outline-[#D9D9D9] rounded-lg"
-                    />
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-md w-full space-y-8">
+                <div>
+                    <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                        Sign in to your account
+                    </h2>
                 </div>
-                <div className="flex flex-col gap-2 w-full mt-4">
-                    <label htmlFor="password">Password</label>
-                    <input
-                        type="password"
-                        id="password"
-                        name="password"
-                        required
-                        ref={passwordRef}
-                        className="input p-4 h-10 outline-1 outline-[#D9D9D9] rounded-lg"
-                    />
-                </div>
-                <button
-                    type="submit"
-                    onClick={() => showToast("success", "Login clicked")}
-                >
-                    Login
-                </button>
-            </form>
-        </>
+                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+                    <div className="rounded-md shadow-sm -space-y-px">
+                        <div>
+                            <label htmlFor="email" className="sr-only">
+                                Email address
+                            </label>
+                            <input
+                                id="email"
+                                name="email"
+                                type="email"
+                                autoComplete="email"
+                                required
+                                ref={emailRef}
+                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                                placeholder="Email address"
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="password" className="sr-only">
+                                Password
+                            </label>
+                            <input
+                                id="password"
+                                name="password"
+                                type="password"
+                                autoComplete="current-password"
+                                required
+                                ref={passwordRef}
+                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                                placeholder="Password"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <button
+                            type="submit"
+                            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                            Sign in
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     )
 }
 
