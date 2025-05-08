@@ -1,86 +1,29 @@
-import React, { useState } from "react"
-import { useNavigate } from "react-router-dom"
-
-// UI components
-import {
-    Box,
-    Tabs,
-    TabList,
-    TabPanels,
-    Tab,
-    TabPanel,
-    Flex,
-} from "@chakra-ui/react"
-import { GoHome } from "react-icons/go"
-import { PiLegoDuotone } from "react-icons/pi"
-import { GrUserWorker } from "react-icons/gr"
-
-// Components
-import Home from "../components/Home"
-import Employees from "../components/Employees"
-import Department from "../components/Department"
+import React from "react"
+import { useLocation } from "react-router-dom"
 
 const Main = () => {
-    const navigate = useNavigate()
-    const [tabIndex, setTabIndex] = useState(0)
-
-    const handleTabChange = (index) => {
-        setTabIndex(index)
-        const routes = ["/", "/employees", "/departments"]
-        navigate(routes[index])
-    }
+    const location = useLocation()
+    const path = location.pathname.substring(1) || "dashboard"
 
     return (
-        <Box minH="100vh" bg="gray.50">
-            <Flex direction="column" h="100vh">
-                <Tabs
-                    index={tabIndex}
-                    onChange={handleTabChange}
-                    variant="enclosed"
-                    colorScheme="blue"
-                    isFitted
-                >
-                    <TabList
-                        bg="white"
-                        shadow="sm"
-                        position="sticky"
-                        top={0}
-                        zIndex={1}
-                    >
-                        <Tab>
-                            <Flex align="center" gap={2}>
-                                <GoHome />
-                                Home
-                            </Flex>
-                        </Tab>
-                        <Tab>
-                            <Flex align="center" gap={2}>
-                                <GrUserWorker />
-                                Employees
-                            </Flex>
-                        </Tab>
-                        <Tab>
-                            <Flex align="center" gap={2}>
-                                <PiLegoDuotone />
-                                Departments
-                            </Flex>
-                        </Tab>
-                    </TabList>
+        <div className="container mx-auto">
+            <div className="bg-white shadow-md rounded-lg p-6">
+                <h1 className="text-2xl font-bold mb-4 capitalize">
+                    {path === "" ? "Dashboard" : path}
+                </h1>
+                <p className="text-gray-600">
+                    This is the {path === "" ? "Dashboard" : path} page. Content
+                    for this section is under development.
+                </p>
 
-                    <TabPanels>
-                        <TabPanel>
-                            <Home name="test" />
-                        </TabPanel>
-                        <TabPanel>
-                            <Employees />
-                        </TabPanel>
-                        <TabPanel>
-                            <Department />
-                        </TabPanel>
-                    </TabPanels>
-                </Tabs>
-            </Flex>
-        </Box>
+                <div className="mt-8 p-4 bg-blue-50 rounded-md">
+                    <p className="text-blue-800">
+                        Welcome to the HR Management System. Navigate using the
+                        menu above.
+                    </p>
+                </div>
+            </div>
+        </div>
     )
 }
 
