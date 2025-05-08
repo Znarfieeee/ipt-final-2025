@@ -4,6 +4,10 @@ import { AppProvider } from "./context/AppContext"
 import Login from "./pages/Login"
 import Main from "./pages/Main"
 import Layout from "./components/Layout/Layout"
+import Department from "./pages/Department"
+import Employees from "./pages/Employees"
+import Workflows from "./pages/Workflows"
+import Requests from "./pages/Requests"
 
 function App() {
     const router = createBrowserRouter([
@@ -17,19 +21,19 @@ function App() {
                 },
                 {
                     path: "employees",
-                    element: <Main />,
+                    element: <Employees />,
                 },
                 {
                     path: "departments",
-                    element: <Main />,
+                    element: <Department />,
                 },
                 {
                     path: "workflows",
-                    element: <Main />,
+                    element: <Workflows />,
                 },
                 {
                     path: "requests",
-                    element: <Main />,
+                    element: <Requests />,
                 },
             ],
         },
