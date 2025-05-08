@@ -12,7 +12,6 @@ function Login() {
     const handleSubmit = async (e) => {
         e.preventDefault()
 
-        showToast("success", "Login clicked")
         // try {
         //     const formData = {
         //         email: emailRef.current.value,
@@ -63,7 +62,12 @@ function Login() {
                         className="input p-4 h-10 outline-1 outline-[#D9D9D9] rounded-lg"
                     />
                 </div>
-                <button type="submit">Login</button>
+                <button
+                    type="submit"
+                    onClick={() => showToast("success", "Login clicked")}
+                >
+                    Login
+                </button>
             </form>
         </>
     )

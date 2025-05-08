@@ -1,4 +1,5 @@
 import useFakeBackend from "./fakeBackend"
+import { USE_FAKE_BACKEND } from "./config"
 
 const useBackend = () => {
     const { fakeFetch } = useFakeBackend()
@@ -11,7 +12,10 @@ const useBackend = () => {
         }
 
         try {
-            const response = await fakeFetch(url, { ...options, headers })
+            const response = USE_FAKE_BACKEND
+                ? await fakeFetch(url, { ...options, headers })
+                : await fetch(url, { ...options, headers })
+
             if (!response.ok) {
                 throw new Error("Network response was not ok")
             }
