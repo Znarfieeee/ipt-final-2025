@@ -5,8 +5,8 @@ export const useFakeBackend = () => {
         {
             id: 1,
             title: "Mr",
-            firstName: "sample",
-            lastName: "test",
+            firstName: "John",
+            lastName: "Doe",
             email: "admin@example.com",
             password: "admin",
             role: "Admin",
@@ -15,13 +15,13 @@ export const useFakeBackend = () => {
         },
         {
             id: 2,
-            title: "Mr",
-            firstName: "sample",
-            lastName: "test",
+            title: "Mrs",
+            firstName: "Jane",
+            lastName: "Doe",
             email: "user@example.com",
             password: "user",
             role: "User",
-            status: "Active",
+            status: "Inactive",
             employeeid: 2,
         },
     ])
@@ -101,7 +101,7 @@ export const useFakeBackend = () => {
     // )
 
     const handleRoute = useCallback(
-        (url, method, token, body) => {
+        (url, method, body) => {
             // Accounts Routes
             if (url.endsWith("/accounts/authenticate") && method === "POST") {
                 const { email, password } = body
@@ -182,12 +182,12 @@ export const useFakeBackend = () => {
 
     const fakeFetch = useCallback(
         async (url, options = {}) => {
-            const { method = "GET", body = {} } = options
+            const { method = "GET" } = options
 
             // Simulate network delay
             await new Promise(resolve => setTimeout(resolve, 500))
 
-            const response = handleRoute(url, method, body)
+            const response = handleRoute(url, method)
 
             if (response.error) {
                 throw new Error(response.error)
