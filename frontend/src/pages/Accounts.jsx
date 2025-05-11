@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from "react"
 import { useFakeBackend } from "../api/fakeBackend"
 import AccountsAddForm from "../components/AccountsAddEditForm"
+import "../"
+
+// UI Libraries
+import { TooltipButton } from "@/util/TooltipHelper"
+import { CiEdit } from "react-icons/ci"
 
 const Accounts = () => {
     const [users, setUsers] = useState([])
@@ -39,12 +44,10 @@ const Accounts = () => {
         const statusStyles = {
             Active: "bg-green-400",
             Inactive: "bg-red-400",
-            Pending: "bg-yellow-400",
-            Suspended: "bg-gray-400",
         }
 
         return (
-            <span className={`px-3 py-1 rounded-md text-md font-medium text-white ${statusStyles[status]}`}>
+            <span className={`px-3 py-1 rounded-full text-md font-medium text-white ${statusStyles[status]}`}>
                 {status}
             </span>
         )
@@ -177,12 +180,13 @@ const Accounts = () => {
                                         {handleStatus(user.status)}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-start">
-                                        <button
-                                            onClick={() => handleEdit(user)}
-                                            className="bg-blue-500 px-3 text-md font-medium py-1 rounded-md text-white hover:bg-blue-700 delay-50 transition-all duration-300 hover:scale-105 cursor-pointer"
+                                        <TooltipButton
+                                            content="Edit"
+                                            onClick={handleEdit}
+                                            className="flex justify-center items-center gap-x-2 bg-blue-500 px-4 text-md font-medium py-2 rounded-md text-white hover:bg-blue-700 delay-50 transition-all duration-300 hover:scale-105 cursor-pointer"
                                         >
-                                            Edit
-                                        </button>
+                                            <CiEdit /> Edit
+                                        </TooltipButton>
                                     </td>
                                 </tr>
                             ))
