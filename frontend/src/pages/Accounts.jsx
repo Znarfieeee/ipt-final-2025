@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { useFakeBackend } from "../api/fakeBackend"
 import AccountsAddForm from "../components/AccountsAddEditForm"
-import "../"
+import "../index.css"
 
 // UI Libraries
 import { TooltipButton } from "@/util/TooltipHelper"
