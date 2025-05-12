@@ -3,12 +3,15 @@ const router = express.Router()
 
 const db = require("../_helpers/db")
 const authorize = require("../_middleware/authorize")
+const validateRequest = require("../_middleware/validate-request")
 const Role = require("../_helpers/role")
+const { createSchema, updateSchema } = require("./department.schema")
 
-router.post("/", authorize(Role.Admin), create)
+// Routes
+router.post("/", authorize(Role.Admin), validateRequest(createSchema), create)
 router.get("/", authorize(), getAll)
 router.get("/:id", authorize(), getById)
-router.put("/:id", authorize(Role.Admin), update)
+router.put("/:id", authorize(Role.Admin), validateRequest(updateSchema), update)
 router.delete("/:id", authorize(Role.Admin), _delete)
 
 async function create(req, res, next) {

@@ -11,7 +11,7 @@ export const useFakeBackend = () => {
             password: "admin",
             role: "Admin",
             status: "Active",
-            employeeid: 1,
+            employeeId: 1,
         },
         {
             id: 2,
@@ -22,7 +22,7 @@ export const useFakeBackend = () => {
             password: "user",
             role: "User",
             status: "Inactive",
-            employeeid: 2,
+            employeeId: 2,
         },
     ])
 
