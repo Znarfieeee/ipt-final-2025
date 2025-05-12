@@ -4,16 +4,24 @@ export const useFakeBackend = () => {
     const [users] = useState([
         {
             id: 1,
+            title: "Mr",
+            firstName: "John",
+            lastName: "Doe",
             email: "admin@example.com",
             password: "admin",
             role: "Admin",
+            status: "Active",
             employeeid: 1,
         },
         {
             id: 2,
+            title: "Mrs",
+            firstName: "Jane",
+            lastName: "Doe",
             email: "user@example.com",
             password: "user",
             role: "User",
+            status: "Inactive",
             employeeid: 2,
         },
     ])
@@ -74,133 +82,112 @@ export const useFakeBackend = () => {
         },
     ])
 
-    const getUser = useCallback(
-        (token) => {
-            if (!token || token !== "fake-jwt-token") return null
-            return users.find((u) => u.token === "fake-jwt-token")
-        },
-        [users]
-    )
+    // const getUser = useCallback(
+    //     token => {
+    //         if (!token || token !== "fake-jwt-token") return null
+    //         return users.find(u => u.token === "fake-jwt-token")
+    //     },
+    //     [users]
+    // )
 
-    const authorize = useCallback(
-        (token, requiredRole, success) => {
-            const user = getUser(token)
-            if (!user) return { error: "Unauthorized" }
-            if (requiredRole && user.role !== requiredRole)
-                return { error: "Forbidden" }
-            return success()
-        },
-        [getUser]
-    )
+    // const authorize = useCallback(
+    //     (token, requiredRole, success) => {
+    //         const user = getUser(token)
+    //         if (!user) return { error: "Unauthorized" }
+    //         if (requiredRole && user.role !== requiredRole) return { error: "Forbidden" }
+    //         return success()
+    //     },
+    //     [getUser]
+    // )
 
     const handleRoute = useCallback(
-        (url, method, token, body) => {
+        (url, method, body) => {
             // Accounts Routes
             if (url.endsWith("/accounts/authenticate") && method === "POST") {
                 const { email, password } = body
-                const user = users.find(
-                    (u) => u.email === email && u.password === password
-                )
+                const user = users.find(u => u.email === email && u.password === password)
                 if (!user) return { error: "Invalid credentials" }
                 return { ...user, token: "fake-jwt-token" }
             }
 
             if (url.endsWith("/accounts") && method === "GET") {
-                return authorize(token, "Admin", () => users)
+                return () => users
             }
 
             // Employees Routes
             if (url.endsWith("/employees") && method === "GET") {
-                return authorize(token, null, () => employees)
+                return () => employees
             }
 
             if (url.match(/\/employees\/\d+$/) && method === "GET") {
                 const id = parseInt(url.split("/").pop())
-                const employee = employees.find((e) => e.id === id)
-                return authorize(
-                    token,
-                    null,
-                    () => employee || { error: "Employee not found" }
-                )
+                const employee = employees.find(e => e.id === id)
+                return () => employee || { error: "Employee not found" }
             }
 
             if (url.match(/\/employees\/\d+$/) && method === "PUT") {
-                return authorize(token, "Admin", () => {
-                    const id = parseInt(url.split("/").pop())
-                    const employeeIndex = employees.findIndex(
-                        (e) => e.id === id
-                    )
-                    if (employeeIndex === -1)
-                        return { error: "Employee not found" }
-                    return { ...employees[employeeIndex], ...body }
-                })
+                const id = parseInt(url.split("/").pop())
+                const employeeIndex = employees.findIndex(e => e.id === id)
+                if (employeeIndex === -1) return { error: "Employee not found" }
+                return { ...employees[employeeIndex], ...body }
             }
 
             // Department Routes
             if (url.endsWith("/departments") && method === "GET") {
-                return authorize(token, null, () => departments)
+                return () => departments
             }
 
             if (url.endsWith("/departments") && method === "POST") {
-                return authorize(token, "Admin", () => {
-                    const department = {
-                        id: departments.length + 1,
-                        ...body,
-                        employeeCount: 0,
-                    }
-                    return department
-                })
+                const department = {
+                    id: departments.length + 1,
+                    ...body,
+                    employeeCount: 0,
+                }
+                return department
             }
 
             // Workflows Routes
             if (url.match(/\/workflows\/employee\/\d+$/) && method === "GET") {
-                return authorize(token, null, () => {
-                    const employeeId = parseInt(url.split("/").pop())
-                    return workflows.filter((w) => w.employeeId === employeeId)
-                })
+                const employeeId = parseInt(url.split("/").pop())
+                return workflows.filter(w => w.employeeId === employeeId)
             }
 
             if (url.endsWith("/workflows") && method === "POST") {
-                return authorize(token, "Admin", () => {
+                return () => {
                     const workflow = { id: workflows.length + 1, ...body }
-                    setWorkflows((prev) => [...prev, workflow])
+                    setWorkflows(prev => [...prev, workflow])
                     return workflow
-                })
+                }
             }
 
             // Requests Routes
             if (url.endsWith("/requests") && method === "GET") {
-                return authorize(token, "Admin", () => requests)
+                return () => requests
             }
 
             if (url.endsWith("/requests") && method === "POST") {
-                return authorize(token, null, () => {
-                    const user = getUser(token)
-                    if (!user) return { error: "Unauthorized" }
-                    const request = {
-                        id: requests.length + 1,
-                        employeeId: user.employeeid,
-                        ...body,
-                    }
-                    setRequests((prev) => [...prev, request])
-                    return request
-                })
+                const request = {
+                    id: requests.length + 1,
+                    employeeId: user.employeeid,
+                    ...body,
+                }
+                setRequests(prev => [...prev, request])
+                return request
             }
 
             return { error: "Route not found" }
         },
-        [users, employees, departments, workflows, requests, authorize, getUser]
+        [users, employees, departments, workflows, requests]
     )
 
     const fakeFetch = useCallback(
         async (url, options = {}) => {
-            const { method = "GET", body, headers = {} } = options
-            const token = headers.Authorization?.replace("Bearer ", "")
+            const { method = "GET" } = options
 
             // Simulate network delay
-            await new Promise((resolve) => setTimeout(resolve, 500))
+            await new Promise(resolve => setTimeout(resolve, 500))
 
-            const response = handleRoute(url, method, token, body)
+            const response = handleRoute(url, method)
 
             if (response.error) {
                 throw new Error(response.error)

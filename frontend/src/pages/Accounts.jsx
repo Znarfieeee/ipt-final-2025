@@ -1,55 +1,46 @@
-import React, { useState, useEffect } from "react"
+import React, { useEffect, useState } from "react"
 import { useFakeBackend } from "../api/fakeBackend"
+import "../index.css"
 
 // Components
 import AccountsAddForm from "../components/AccountsAddEditForm"
 import ButtonWithIcon from "../components/ButtonWithIcon"
 
 // UI Libraries
-import { GoGitPullRequest, GoWorkflow } from "react-icons/go"
-import { TbTransfer } from "react-icons/tb"
 import { IoIosAdd } from "react-icons/io"
 import { CiEdit } from "react-icons/ci"
-import { TooltipButton } from "@/util/TooltipHelper"
 
-function Employees() {
-    const [employees, setEmployees] = useState([])
+const Accounts = () => {
+    const [users, setUsers] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
     const [showForm, setShowForm] = useState(false)
+    const [editingUser, setEditingUser] = useState(null)
     const { fakeFetch } = useFakeBackend()
 
     useEffect(() => {
-        const fetchData = async () => {
+        const fetchUsers = async () => {
             try {
-                // Fetch both employees and users data
-                const [employeesResponse, usersResponse] = await Promise.all([
-                    fakeFetch("/employees", {
-                        method: "GET",
-                        body: "",
-                    }),
-                    fakeFetch("/accounts", {
-                        method: "GET",
-                        body: "",
-                    }),
-                ])
+                const response = await fakeFetch("/accounts", {
+                    method: "GET",
+                    body: "",
+                })
 
-                const employeesData = await employeesResponse.json()
-                const usersData = await usersResponse.json()
+                const data = await response.json()
+                if (data.error) {
+                    throw new Error(data.error)
+                }
 
-                if (employeesData.error) throw new Error(employeesData.error)
-                if (usersData.error) throw new Error(usersData.error)
-
-                setEmployees(employeesData)
+                setUsers(data)
                 setError(null)
             } catch (err) {
-                console.error("Error fetching data: ", err)
+                console.error("Error fetching users: ", err)
                 setError(err.message)
             } finally {
                 setLoading(false)
             }
         }
-        fetchData()
+        fetchUsers()
     }, [fakeFetch])
 
     function handleStatus(status) {
@@ -63,6 +54,50 @@ function Employees() {
                 {status}
             </span>
         )
+    }
+
+    const handleAdd = () => {
+        setEditingUser(null)
+        setShowForm(true)
+    }
+
+    const handleEdit = user => {
+        setEditingUser(user)
+        setShowForm(true)
+    }
+
+    const handleFormSubmit = async formData => {
+        try {
+            const method = editingUser ? "PUT" : "POST"
+            const path = editingUser ? `/accounts/${editingUser.id}` : "/accounts"
+
+            const response = await fakeFetch(path, {
+                method,
+                body: JSON.stringify(formData),
+            })
+
+            const data = await response.json()
+            if (data.error) {
+                throw new Error(data.error)
+            }
+
+            if (editingUser) {
+                setUsers(users.map(u => (u.id === editingUser.id ? { ...data } : u)))
+            } else {
+                setUsers([...users, data])
+            }
+
+            setShowForm(false)
+            setEditingUser(null)
+        } catch (err) {
+            console.error("Error saving user: ", err)
+            setError(err.message)
+        }
+    }
+
+    const handleFormCancel = () => {
+        setShowForm(false)
+        setEditingUser(null)
     }
 
     if (loading) {
@@ -86,25 +121,15 @@ function Employees() {
         )
     }
 
-    const handleAdd = () => {
-        setEditingUser(null)
-        setShowForm(true)
-    }
-
-    const handleEdit = user => {
-        setEditingUser(user)
-        setShowForm(true)
-    }
-
     return (
         <>
             <div className="bg-white shadow-md rounded-lg p-6">
                 <div id="table-header" className="flex flex-row justify-between items-center mb-2">
-                    <h1 className="text-2xl font-bold capitalize text-foreground">EMPLOYEES</h1>
+                    <h1 className="text-2xl font-bold capitalize text-foreground">ACCOUNTS</h1>
                     <ButtonWithIcon
                         icon={IoIosAdd}
-                        text="Employee"
-                        tooltipContent="Add New Employee"
+                        text="Account"
+                        tooltipContent="Add New Account"
                         onClick={handleAdd}
                         variant="primary"
                     />
@@ -114,19 +139,19 @@ function Employees() {
                     <thead className="bg-gray-50">
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
-                                Employee ID
+                                Title
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
+                                First Name
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
+                                Last Name
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
                                 Email
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
-                                Position
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
-                                Department
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
-                                Hire Date
+                                Role
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
                                 Status
@@ -137,54 +162,33 @@ function Employees() {
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {employees && employees.length > 0 ? (
-                            employees.map(employee => (
-                                <tr key={employee.id} className="hover:bg-gray-50">
+                        {users && users.length > 0 ? (
+                            users.map(user => (
+                                <tr key={user.id} className="hover:bg-gray-50">
                                     <td className="px-6 py-4 whitespace-nowrap text-start text-foreground">
-                                        {employee.employeeId}
+                                        {user.title}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-start text-foreground">
-                                        {employee.userEmail}
+                                        {user.firstName}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-start text-foreground">
-                                        {employee.position}
+                                        {user.lastName}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-start text-foreground">
-                                        {employee.departmentId}
+                                        {user.email}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-start text-foreground">
-                                        {employee.hireDate}
+                                        {user.role}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-start">
-                                        {handleStatus(employee.status)}
+                                        {handleStatus(user.status)}
                                     </td>
-                                    <td className="flex px-6 py-4 whitespace-nowrap text-start gap-2">
-                                        <ButtonWithIcon
-                                            icon={GoGitPullRequest}
-                                            text=""
-                                            tooltipContent="Request"
-                                            onClick={handleAdd}
-                                            variant="orange"
-                                        />
-                                        <ButtonWithIcon
-                                            icon={GoWorkflow}
-                                            text=""
-                                            tooltipContent="Workflows"
-                                            onClick={handleAdd}
-                                            variant="pink"
-                                        />
-                                        <ButtonWithIcon
-                                            icon={TbTransfer}
-                                            text=""
-                                            tooltipContent="Transfer"
-                                            onClick={handleAdd}
-                                            variant="warning"
-                                        />
+                                    <td className="px-6 py-4 whitespace-nowrap text-start">
                                         <ButtonWithIcon
                                             icon={CiEdit}
-                                            text=""
-                                            tooltipContent="Edit"
-                                            onClick={handleAdd}
+                                            text="Edit"
+                                            tooltipContent="Edit Account"
+                                            onClick={() => handleEdit(user)}
                                             variant="primary"
                                         />
                                     </td>
@@ -193,13 +197,14 @@ function Employees() {
                         ) : (
                             <tr>
                                 <td colSpan="7" className="px-6 py-4 text-center text-destructive">
-                                    No employees found
+                                    No users found
                                 </td>
                             </tr>
                         )}
                     </tbody>
                 </table>
             </div>
+
             {showForm && (
                 <AccountsAddForm onSubmit={handleFormSubmit} onCancel={handleFormCancel} initialData={editingUser} />
             )}
@@ -207,4 +212,4 @@ function Employees() {
     )
 }
 
-export default Employees
+export default Accounts
