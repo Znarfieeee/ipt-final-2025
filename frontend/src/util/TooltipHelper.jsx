@@ -7,14 +7,17 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
  * @param {React.ReactNode} props.children - The trigger element
  * @param {string} props.content - The tooltip content
  * @param {string} props.className - Additional classes for the trigger element
+ * @param {Function} props.onClick - Click handler for the button
  * @returns {JSX.Element} - The tooltip component
  */
-export const TooltipButton = ({ children, content, className }) => {
+export const TooltipButton = ({ children, content, className, onClick }) => {
     return (
         <TooltipProvider>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <button className={className}>{children}</button>
+                    <button className={className} onClick={onClick}>
+                        {children}
+                    </button>
                 </TooltipTrigger>
                 <TooltipContent>
                     <p>{content}</p>

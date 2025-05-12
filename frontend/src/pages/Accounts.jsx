@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from "react"
 import { useFakeBackend } from "../api/fakeBackend"
-import AccountsAddForm from "../components/AccountsAddEditForm"
 import "../index.css"
 
+// Components
+import AccountsAddForm from "../components/AccountsAddEditForm"
+import ButtonWithIcon from "../components/ButtonWithIcon"
+
 // UI Libraries
-import { TooltipButton } from "@/util/TooltipHelper"
+import { IoIosAdd } from "react-icons/io"
 import { CiEdit } from "react-icons/ci"
 
 const Accounts = () => {
@@ -123,12 +126,13 @@ const Accounts = () => {
             <div className="bg-white shadow-md rounded-lg p-6">
                 <div id="table-header" className="flex flex-row justify-between items-center mb-2">
                     <h1 className="text-2xl font-bold capitalize text-foreground">ACCOUNTS</h1>
-                    <button
+                    <ButtonWithIcon
+                        icon={IoIosAdd}
+                        text="Account"
+                        tooltipContent="Add New Account"
                         onClick={handleAdd}
-                        className="bg-blue-500 px-4 py-2 rounded-md text-white hover:bg-blue-700 delay-50 transition-all duration-300 hover:scale-105 cursor-pointer"
-                    >
-                        Add Account
-                    </button>
+                        variant="primary"
+                    />
                 </div>
                 <hr className="mb-4" />
                 <table className="min-w-full divide-y divide-gray-200">
@@ -180,13 +184,13 @@ const Accounts = () => {
                                         {handleStatus(user.status)}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-start">
-                                        <TooltipButton
-                                            content="Edit"
-                                            onClick={handleEdit}
-                                            className="flex justify-center items-center gap-x-2 bg-blue-500 px-4 text-md font-medium py-2 rounded-md text-white hover:bg-blue-700 delay-50 transition-all duration-300 hover:scale-105 cursor-pointer"
-                                        >
-                                            <CiEdit /> Edit
-                                        </TooltipButton>
+                                        <ButtonWithIcon
+                                            icon={CiEdit}
+                                            text="Edit"
+                                            tooltipContent="Edit Account"
+                                            onClick={() => handleEdit(user)}
+                                            variant="primary"
+                                        />
                                     </td>
                                 </tr>
                             ))

@@ -105,9 +105,7 @@ function AccountsAddForm({ onSubmit, onCancel, initialData }) {
                                 className="w-full p-2 rounded-md border border-input bg-background text-foreground"
                                 required
                             >
-                                <option value="employee" selected>
-                                    User
-                                </option>
+                                <option value="employee">User</option>
                                 <option value="admin">Admin</option>
                             </select>
                         </div>
@@ -125,9 +123,7 @@ function AccountsAddForm({ onSubmit, onCancel, initialData }) {
                                 required
                             >
                                 <option value="Active">Active</option>
-                                <option value="Inactive" selected>
-                                    Inactive
-                                </option>
+                                <option value="Inactive">Inactive</option>
                             </select>
                         </div>
                     </div>

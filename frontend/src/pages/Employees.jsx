@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from "react"
 import { useFakeBackend } from "../api/fakeBackend"
 
+// Components
+import AccountsAddForm from "../components/AccountsAddEditForm"
+import ButtonWithIcon from "../components/ButtonWithIcon"
+
 // UI Libraries
 import { GoGitPullRequest, GoWorkflow } from "react-icons/go"
 import { TbTransfer } from "react-icons/tb"
+import { IoIosAdd } from "react-icons/io"
 import { CiEdit } from "react-icons/ci"
 import { TooltipButton } from "@/util/TooltipHelper"
 
@@ -11,6 +16,7 @@ function Employees() {
     const [employees, setEmployees] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
+    const [showForm, setShowForm] = useState(false)
     const { fakeFetch } = useFakeBackend()
 
     useEffect(() => {
@@ -80,14 +86,28 @@ function Employees() {
         )
     }
 
+    const handleAdd = () => {
+        setEditingUser(null)
+        setShowForm(true)
+    }
+
+    const handleEdit = user => {
+        setEditingUser(user)
+        setShowForm(true)
+    }
+
     return (
         <>
             <div className="bg-white shadow-md rounded-lg p-6">
                 <div id="table-header" className="flex flex-row justify-between items-center mb-2">
                     <h1 className="text-2xl font-bold capitalize text-foreground">EMPLOYEES</h1>
-                    <button className="bg-blue-500 px-4 py-2 rounded-md text-white hover:bg-blue-700 delay-50 transition-all duration-300 hover:scale-105 cursor-pointer">
-                        Add Employee
-                    </button>
+                    <ButtonWithIcon
+                        icon={IoIosAdd}
+                        text="Employee"
+                        tooltipContent="Add New Employee"
+                        onClick={handleAdd}
+                        variant="primary"
+                    />
                 </div>
                 <hr className="mb-4" />
                 <table className="min-w-full divide-y divide-gray-200">
@@ -139,33 +159,34 @@ function Employees() {
                                         {handleStatus(employee.status)}
                                     </td>
                                     <td className="flex px-6 py-4 whitespace-nowrap text-start gap-2">
-                                        <TooltipButton
-                                            content="Request"
-                                            className="bg-orange-500 px-3 text-md font-medium py-3 rounded-md text-white hover:bg-orange-700 delay-50 transition-all duration-300 hover:scale-105 cursor-pointer"
-                                        >
-                                            <GoGitPullRequest />
-                                        </TooltipButton>
-
-                                        <TooltipButton
-                                            content="Workflows"
-                                            className="bg-pink-500 px-3 text-md font-medium py-3 rounded-md text-white hover:bg-pink-700 delay-50 transition-all duration-300 hover:scale-105 cursor-pointer"
-                                        >
-                                            <GoWorkflow />
-                                        </TooltipButton>
-
-                                        <TooltipButton
-                                            content="Transfer"
-                                            className="bg-yellow-500 px-3 text-md font-medium py-3 rounded-md text-white hover:bg-yellow-700 delay-50 transition-all duration-300 hover:scale-105 cursor-pointer"
-                                        >
-                                            <TbTransfer />
-                                        </TooltipButton>
-
-                                        <TooltipButton
-                                            content="Edit"
-                                            className="bg-blue-500 px-3 text-md font-medium py-3 rounded-md text-white hover:bg-blue-700 delay-50 transition-all duration-300 hover:scale-105 cursor-pointer"
-                                        >
-                                            <CiEdit />
-                                        </TooltipButton>
+                                        <ButtonWithIcon
+                                            icon={GoGitPullRequest}
+                                            text=""
+                                            tooltipContent="Request"
+                                            onClick={handleAdd}
+                                            variant="orange"
+                                        />
+                                        <ButtonWithIcon
+                                            icon={GoWorkflow}
+                                            text=""
+                                            tooltipContent="Workflows"
+                                            onClick={handleAdd}
+                                            variant="pink"
+                                        />
+                                        <ButtonWithIcon
+                                            icon={TbTransfer}
+                                            text=""
+                                            tooltipContent="Transfer"
+                                            onClick={handleAdd}
+                                            variant="warning"
+                                        />
+                                        <ButtonWithIcon
+                                            icon={CiEdit}
+                                            text=""
+                                            tooltipContent="Edit"
+                                            onClick={handleAdd}
+                                            variant="primary"
+                                        />
                                     </td>
                                 </tr>
                             ))
@@ -179,6 +200,9 @@ function Employees() {
                     </tbody>
                 </table>
             </div>
+            {showForm && (
+                <AccountsAddForm onSubmit={handleFormSubmit} onCancel={handleFormCancel} initialData={editingUser} />
+            )}
         </>
     )
 }
