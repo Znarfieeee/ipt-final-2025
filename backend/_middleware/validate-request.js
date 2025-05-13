@@ -1,18 +1,19 @@
-module.exports = validateRequest
+const { validationResult } = require("express-validator")
 
-function validateRequest(req, next, schema) {
-    const options = {
-        abortEarly: false, // Include all errors
-        allowUnknown: true, // ignore unknown props
-        stripUnknown: true, // remove unknown props
-    }
-    const { error, value } = schema.validate(req.body, options)
-    if (error) {
-        next(
-            `Validation error: ${error.details.map(x => x.message).join(", ")}`
-        )
-    } else {
-        req.body = value
-        next()
+function validateRequest(validations) {
+    return async (req, res, next) => {
+        // Run all validations
+        await Promise.all(validations.map(validation => validation.run(req)))
+
+        const errors = validationResult(req)
+        if (errors.isEmpty()) {
+            return next()
+        }
+
+        return res.status(400).json({
+            errors: errors.array(),
+        })
     }
 }
+
+module.exports = validateRequest
