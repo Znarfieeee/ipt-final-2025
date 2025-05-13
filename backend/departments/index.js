@@ -5,7 +5,7 @@ const db = require("../_helpers/db")
 const authorize = require("../_middleware/authorize")
 const validateRequest = require("../_middleware/validate-request")
 const Role = require("../_helpers/role")
-const { createSchema, updateSchema } = require("./department.schema")
+const { createSchema, updateSchema } = require("../models/department.model")
 
 // Routes
 router.post("/", authorize(Role.Admin), validateRequest(createSchema), create)
