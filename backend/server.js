@@ -18,8 +18,10 @@ app.use(bodyParser.json())
 app.use(cookieParser())
 app.use(
     cors({
-        origin: "http://localhost:5173",
+        origin: ["http://localhost:5173", "http://localhost:3000"],
         credentials: true,
+        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization"],
     })
 )
 
@@ -45,7 +47,7 @@ const authenticateToken = (req, res, next) => {
 
 // Basic routes
 app.get("/", (req, res) => {
-    res.json({ message: "Welcome to the API" })
+    res.status(200).json({ message: "Welcome to the API" })
 })
 
 // Auth routes
@@ -74,13 +76,13 @@ app.post(
             })
 
             if (!user) {
-                return res
-                    .status(401)
-                    .json({ message: "Invalid email or password" })
+                return res.status(401).json({
+                    success: false,
+                    message: "Invalid email or password",
+                })
             }
 
             // For development, accept any password for the demo
-            // In production, use proper password comparison
             const token = jwt.sign(
                 {
                     id: user.id,
@@ -89,9 +91,12 @@ app.post(
                     employeeId: user.Employee?.id,
                 },
                 process.env.JWT_SECRET || "your-secret-key",
-                { expiresIn: "24h" }
+                {
+                    expiresIn: "24h",
+                }
             )
 
+            // Set cookie first
             res.cookie("token", token, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
@@ -99,7 +104,9 @@ app.post(
                 maxAge: 24 * 60 * 60 * 1000, // 24 hours
             })
 
-            res.json({
+            // Then send response
+            return res.status(200).json({
+                success: true,
                 message: "Login successful",
                 user: {
                     id: user.id,
@@ -114,7 +121,10 @@ app.post(
             })
         } catch (error) {
             console.error("Login error:", error)
-            res.status(500).json({ message: "Error during login process" })
+            return res.status(500).json({
+                success: false,
+                message: "Error during login process",
+            })
         }
     }
 )
@@ -122,7 +132,7 @@ app.post(
 // Logout route
 app.post("/api/auth/logout", (req, res) => {
     res.clearCookie("token")
-    res.json({ message: "Logged out successfully" })
+    res.status(200).json({ message: "Logged out successfully" })
 })
 
 // Protected API routes
@@ -135,6 +145,7 @@ app.use("/api/workflows", authenticateToken, require("./workflows"))
 app.use((err, req, res, next) => {
     console.error(err.stack)
     res.status(err.status || 500).json({
+        success: false,
         message: err.message || "Internal Server Error",
     })
 })
