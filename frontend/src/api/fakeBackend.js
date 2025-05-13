@@ -11,7 +11,7 @@ export const useFakeBackend = () => {
             password: "admin",
             role: "Admin",
             status: "Active",
-            employeeid: 1,
+            employeeId: 1,
         },
         {
             id: 2,
@@ -22,7 +22,7 @@ export const useFakeBackend = () => {
             password: "user",
             role: "User",
             status: "Inactive",
-            employeeid: 2,
+            employeeId: 2,
         },
     ])
 
@@ -80,49 +80,38 @@ export const useFakeBackend = () => {
             requestItems: [{ name: "Laptop", quantity: 1 }],
             status: "Pending",
         },
+        {
+            id: 2,
+            employeeId: 2,
+            type: "Equipment",
+            requestItems: [{ name: "Mouse", quantity: 3 }],
+            status: "Approved",
+        },
+        {
+            id: 3,
+            employeeId: 1,
+            type: "Leave",
+            requestItems: [{ name: "Vacation", quantity: 2 }],
+            status: "Denied",
+        },
     ])
-
-    // const getUser = useCallback(
-    //     token => {
-    //         if (!token || token !== "fake-jwt-token") return null
-    //         return users.find(u => u.token === "fake-jwt-token")
-    //     },
-    //     [users]
-    // )
-
-    // const authorize = useCallback(
-    //     (token, requiredRole, success) => {
-    //         const user = getUser(token)
-    //         if (!user) return { error: "Unauthorized" }
-    //         if (requiredRole && user.role !== requiredRole) return { error: "Forbidden" }
-    //         return success()
-    //     },
-    //     [getUser]
-    // )
 
     const handleRoute = useCallback(
         (url, method, body) => {
             // Accounts Routes
-            if (url.endsWith("/accounts/authenticate") && method === "POST") {
-                const { email, password } = body
-                const user = users.find(u => u.email === email && u.password === password)
-                if (!user) return { error: "Invalid credentials" }
-                return { ...user, token: "fake-jwt-token" }
-            }
-
             if (url.endsWith("/accounts") && method === "GET") {
-                return () => users
+                return users
             }
 
             // Employees Routes
             if (url.endsWith("/employees") && method === "GET") {
-                return () => employees
+                return employees
             }
 
             if (url.match(/\/employees\/\d+$/) && method === "GET") {
                 const id = parseInt(url.split("/").pop())
                 const employee = employees.find(e => e.id === id)
-                return () => employee || { error: "Employee not found" }
+                return employee || { error: "Employee not found" }
             }
 
             if (url.match(/\/employees\/\d+$/) && method === "PUT") {
@@ -134,7 +123,7 @@ export const useFakeBackend = () => {
 
             // Department Routes
             if (url.endsWith("/departments") && method === "GET") {
-                return () => departments
+                return departments
             }
 
             if (url.endsWith("/departments") && method === "POST") {
@@ -153,22 +142,20 @@ export const useFakeBackend = () => {
             }
 
             if (url.endsWith("/workflows") && method === "POST") {
-                return () => {
-                    const workflow = { id: workflows.length + 1, ...body }
-                    setWorkflows(prev => [...prev, workflow])
-                    return workflow
-                }
+                const workflow = { id: workflows.length + 1, ...body }
+                setWorkflows(prev => [...prev, workflow])
+                return workflow
             }
 
             // Requests Routes
             if (url.endsWith("/requests") && method === "GET") {
-                return () => requests
+                return requests
             }
 
             if (url.endsWith("/requests") && method === "POST") {
                 const request = {
                     id: requests.length + 1,
-                    employeeId: user.employeeid,
+                    employeeId: body.employeeId,
                     ...body,
                 }
                 setRequests(prev => [...prev, request])

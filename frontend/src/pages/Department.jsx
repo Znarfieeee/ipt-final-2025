@@ -8,7 +8,7 @@ import ButtonWithIcon from "../components/ButtonWithIcon"
 
 // UI Libraries
 import { CiEdit } from "react-icons/ci"
-import { IoIosAdd } from "react-icons/io"
+import { IoAddSharp } from "react-icons/io5"
 
 function Department() {
     const [depts, setDepts] = useState([])
@@ -86,7 +86,7 @@ function Department() {
                 <div id="table-header" className="flex flex-row justify-between items-center mb-2">
                     <h1 className="text-2xl font-bold capitalize text-foreground">DEPARTMENTS</h1>
                     <ButtonWithIcon
-                        icon={IoIosAdd}
+                        icon={IoAddSharp}
                         text="Department"
                         tooltipContent="Add New Department"
                         onClick={handleAdd}

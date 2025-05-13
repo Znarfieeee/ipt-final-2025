@@ -1,7 +1,7 @@
 import React from "react"
 import { createBrowserRouter, RouterProvider } from "react-router-dom"
 import { AppProvider } from "./context/AppContext"
-// import Login from "./pages/Login"
+import Login from "./pages/Login"
 import Accounts from "./pages/Accounts"
 import Layout from "./components/Layout/Layout"
 import Department from "./pages/Department"
@@ -15,7 +15,7 @@ function App() {
             element: <Layout />,
             children: [
                 {
-                    index: true,
+                    path: "accounts",
                     element: <Accounts />,
                 },
                 {
@@ -32,10 +32,10 @@ function App() {
                 },
             ],
         },
-        // {
-        //     path: "/login",
-        //     element: <Login />,
-        // },
+        {
+            path: "/login",
+            element: <Login />,
+        },
     ])
 
     return (

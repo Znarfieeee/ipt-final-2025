@@ -23,13 +23,13 @@ const ButtonWithIcon = ({ icon: Icon, text, tooltipContent, onClick, variant = "
     }
 
     const baseClasses =
-        "flex justify-center items-center gap-x-2 px-4 py-2 rounded-md text-white delay-50 transition-all duration-300 hover:scale-105 cursor-pointer"
+        "flex justify-center items-center gap-x-2 px-3 py-2 rounded-md text-white delay-50 transition-all duration-300 hover:scale-105 cursor-pointer"
     const variantClasses = variants[variant] || variants.primary
     const combinedClasses = `${baseClasses} ${variantClasses} ${className}`
 
     return (
         <TooltipButton content={tooltipContent || text} onClick={onClick} className={combinedClasses}>
-            {Icon && <Icon />}
+            {Icon && <Icon className="size-4" />}
             {text}
         </TooltipButton>
     )

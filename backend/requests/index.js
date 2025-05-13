@@ -1,14 +1,57 @@
 const express = require("express")
 const router = express.Router()
+const { body } = require("express-validator")
 const db = require("../_helpers/db")
 const authorize = require("../_middleware/authorize")
+const validateRequest = require("../_middleware/validate-request")
 const Role = require("../_helpers/role")
 
-router.post("/", authorize(), create)
+// Validation rules
+const createValidation = [
+    body("type").notEmpty().withMessage("Request type is required"),
+    body("requestItems")
+        .isArray()
+        .withMessage("Request items must be an array"),
+    body("requestItems.*.name").notEmpty().withMessage("Item name is required"),
+    body("requestItems.*.quantity")
+        .isInt({ min: 1 })
+        .withMessage("Quantity must be at least 1"),
+]
+
+const updateValidation = [
+    body("type")
+        .optional()
+        .notEmpty()
+        .withMessage("Request type cannot be empty"),
+    body("status")
+        .optional()
+        .isIn(["Pending", "Approved", "Rejected"])
+        .withMessage("Invalid status"),
+    body("requestItems")
+        .optional()
+        .isArray()
+        .withMessage("Request items must be an array"),
+    body("requestItems.*.name")
+        .optional()
+        .notEmpty()
+        .withMessage("Item name cannot be empty"),
+    body("requestItems.*.quantity")
+        .optional()
+        .isInt({ min: 1 })
+        .withMessage("Quantity must be at least 1"),
+]
+
+// Routes
+router.post("/", authorize(), validateRequest(createValidation), create)
 router.get("/", authorize(Role.Admin), getAll)
 router.get("/:id", authorize(), getById)
 router.get("/employee/:employeeId", authorize(), getByEmployeeId)
-router.put("/:id", authorize(Role.Admin), update)
+router.put(
+    "/:id",
+    authorize(Role.Admin),
+    validateRequest(updateValidation),
+    update
+)
 router.delete("/:id", authorize(Role.Admin), _delete)
 
 async function create(req, res, next) {
@@ -27,6 +70,7 @@ async function create(req, res, next) {
         next(err)
     }
 }
+
 async function getAll(req, res, next) {
     try {
         const requests = await db.Request.findAll({

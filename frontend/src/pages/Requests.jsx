@@ -3,11 +3,11 @@ import { useFakeBackend } from "../api/fakeBackend"
 import "../index.css"
 
 // Components
-import AccountsAddForm from "../components/AccountsAddEditForm"
+import RequestAddForm from "../components/RequestAddEditForm"
 import ButtonWithIcon from "../components/ButtonWithIcon"
 
 // UI Libraries
-import { IoIosAdd } from "react-icons/io"
+import { IoAddSharp } from "react-icons/io5"
 import { CiEdit } from "react-icons/ci"
 
 function Requests() {
@@ -21,30 +21,33 @@ function Requests() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // Fetch both requests and employee data
-                const [requestsResponse, employeesResponse] = await Promise.all([
+                // Fetch requests, employees and users data
+                const [requestsResponse, usersResponse] = await Promise.all([
                     fakeFetch("/requests", {
                         method: "GET",
                         body: "",
                     }),
-                    fakeFetch("/employees", {
+                    fakeFetch("/accounts", {
                         method: "GET",
                         body: "",
                     }),
                 ])
 
                 const requestsData = await requestsResponse.json()
-                const employeesData = await employeesResponse.json()
+                const usersData = await usersResponse.json()
 
                 if (requestsData.error) throw new Error(requestsData.error)
-                if (employeesData.error) throw new Error(employeesData.error)
+                if (usersData.error) throw new Error(usersData.error)
 
-                // Combine request data with employee details
-                const requestsWithEmployees = requestsData.map(request => {
-                    const employee = employeesData.find(emp => emp.id === request.employeeId)
+                // Ensure we have arrays
+                const requestsArray = Array.isArray(requestsData) ? requestsData : []
+                const usersArray = Array.isArray(usersData) ? usersData : [] // Combine request data with employee and user details
+                const requestsWithEmployees = requestsArray.map(request => {
+                    const user = usersArray.find(user => user.employeeId === request.employeeId)
+                    const userType = user ? (user.role === "Admin" ? "Admin User" : "Normal User") : "Unknown User"
                     return {
                         ...request,
-                        employeeName: employee ? `${employee.employeeId}` : "Unknown Employee",
+                        employeeEmail: user ? `${user.email} (${userType})` : "Unknown Employee",
                     }
                 })
 
@@ -111,7 +114,7 @@ function Requests() {
                 <div id="table-header" className="flex flex-row justify-between items-center mb-2">
                     <h1 className="text-2xl font-bold capitalize text-foreground">REQUESTS</h1>
                     <ButtonWithIcon
-                        icon={IoIosAdd}
+                        icon={IoAddSharp}
                         text="Request"
                         tooltipContent="Add New Request"
                         onClick={handleAdd}
@@ -149,7 +152,7 @@ function Requests() {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-start text-foreground">
-                                        {request.employeeName}
+                                        {request.employeeEmail}
                                     </td>
                                     <td className="px-6 py-4 text-start text-foreground">
                                         <div className="flex flex-col space-y-1">
@@ -192,7 +195,7 @@ function Requests() {
             </div>
 
             {showForm && (
-                <AccountsAddForm
+                <RequestAddForm
                     onSubmit={data => {
                         // Handle form submission
                         setShowForm(false)

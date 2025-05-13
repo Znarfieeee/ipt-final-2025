@@ -4,6 +4,7 @@ const router = express.Router()
 const db = require("../_helpers/db")
 const authorize = require("../_middleware/authorize")
 const Role = require("../_helpers/role")
+const { createSchema, updateSchema } = require("../models/employee.model")
 
 router.post("/", authorize(Role.Admin), create)
 router.get("/", authorize(), getAll)

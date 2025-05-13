@@ -7,7 +7,7 @@ import AccountsAddForm from "../components/AccountsAddEditForm"
 import ButtonWithIcon from "../components/ButtonWithIcon"
 
 // UI Libraries
-import { IoIosAdd } from "react-icons/io"
+import { IoAddSharp } from "react-icons/io5"
 import { CiEdit } from "react-icons/ci"
 
 const Accounts = () => {
@@ -127,7 +127,7 @@ const Accounts = () => {
                 <div id="table-header" className="flex flex-row justify-between items-center mb-2">
                     <h1 className="text-2xl font-bold capitalize text-foreground">ACCOUNTS</h1>
                     <ButtonWithIcon
-                        icon={IoIosAdd}
+                        icon={IoAddSharp}
                         text="Account"
                         tooltipContent="Add New Account"
                         onClick={handleAdd}

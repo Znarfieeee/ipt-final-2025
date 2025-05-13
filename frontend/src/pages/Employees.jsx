@@ -8,7 +8,7 @@ import ButtonWithIcon from "../components/ButtonWithIcon"
 // UI Libraries
 import { GoGitPullRequest, GoWorkflow } from "react-icons/go"
 import { TbTransfer } from "react-icons/tb"
-import { IoIosAdd } from "react-icons/io"
+import { IoAddSharp } from "react-icons/io5"
 import { CiEdit } from "react-icons/ci"
 import { TooltipButton } from "@/util/TooltipHelper"
 
@@ -102,7 +102,7 @@ function Employees() {
                 <div id="table-header" className="flex flex-row justify-between items-center mb-2">
                     <h1 className="text-2xl font-bold capitalize text-foreground">EMPLOYEES</h1>
                     <ButtonWithIcon
-                        icon={IoIosAdd}
+                        icon={IoAddSharp}
                         text="Employee"
                         tooltipContent="Add New Employee"
                         onClick={handleAdd}
