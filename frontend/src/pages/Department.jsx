@@ -3,7 +3,7 @@ import { useFakeBackend } from "../api/fakeBackend"
 import "../index.css"
 
 // Components
-import AccountsAddForm from "../components/AccountsAddEditForm"
+import DepartmentAddEditForm from "../components/DepartmentAddEditForm"
 import ButtonWithIcon from "../components/ButtonWithIcon"
 
 // UI Libraries
@@ -53,10 +53,34 @@ function Department() {
         setShowForm(true)
     }
 
-    const handleFormSubmit = formData => {
-        // Handle form submission logic here
-        console.log("Form submitted:", formData)
-        setShowForm(false)
+    const handleFormSubmit = async formData => {
+        try {
+            const method = editingUser ? "PUT" : "POST"
+            const url = editingUser ? `/departments/${editingUser.id}` : "/departments"
+
+            const response = await fakeFetch(url, {
+                method,
+                body: formData,
+            })
+
+            const data = await response.json()
+            if (data.error) {
+                throw new Error(data.error)
+            }
+
+            // Refresh the departments list
+            const updatedResponse = await fakeFetch("/departments")
+            const updatedData = await updatedResponse.json()
+            setDepts(updatedData)
+
+            // Show success message
+            alert(`Department ${editingUser ? "updated" : "created"} successfully!`)
+            setShowForm(false)
+            setEditingUser(null)
+        } catch (err) {
+            console.error("Error submitting department:", err)
+            alert(err.message || "An error occurred while saving the department")
+        }
     }
 
     if (loading) {
@@ -147,7 +171,7 @@ function Department() {
             </div>
 
             {showForm && (
-                <AccountsAddForm
+                <DepartmentAddEditForm
                     onSubmit={handleFormSubmit}
                     onCancel={() => setShowForm(false)}
                     initialData={editingUser}
