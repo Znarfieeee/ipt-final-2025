@@ -7,6 +7,7 @@ const helmet = require("helmet");
 const jwt = require("jsonwebtoken");
 const { body, validationResult } = require("express-validator");
 const db = require("./_helpers/db");
+const { initializeDatabase, createPool } = require('./database/db');
 
 // Create Express app
 const app = express();
@@ -34,7 +35,7 @@ const authenticateToken = (req, res, next) => {
   try {
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET || "your-secret-key"
+      process.env.JWT_SECRET || "sample-key"
     );
     req.user = decoded;
     next();
@@ -86,7 +87,7 @@ app.post(
           role: user.role,
           employeeId: user.Employee?.id,
         },
-        process.env.JWT_SECRET || "your-secret-key",
+        process.env.JWT_SECRET || "sample-key",
         { expiresIn: "24h" }
       );
 
@@ -133,35 +134,60 @@ app.use("/api/workflows", authenticateToken, require("./workflows"));
 // Error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
+  
+  // Always return JSON, never HTML
+  res.setHeader('Content-Type', 'application/json');
+  
   res.status(err.status || 500).json({
     message: err.message || "Internal Server Error",
   });
 });
 
+// Handle 404 errors as JSON
+app.use((req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.status(404).json({ message: 'Route not found' });
+});
+
 // Start server
 const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
 
-  // Sync database
-  db.sequelize.sync().then(() => {
-    console.log("Database synced");
+async function startServer() {
+  try {
+    // Initialize database (just creates the database if it doesn't exist)
+    await initializeDatabase();
+    
+    // No need to replace db.sequelize - it's already properly set up in _helpers/db.js
+    // db.sequelize = await createPool(); ← This was causing the error
+    
+    // Sync database using the existing Sequelize instance
+    await db.sequelize.sync();
+    
+    // Start server
+    app.listen(port, () => {
+      console.log(`Server running on port ${port}`);
 
-    // Create default admin user if it doesn't exist
-    db.User.findOrCreate({
-      where: { email: "admin@example.com" },
-      defaults: {
-        firstName: "Admin",
-        lastName: "User",
-        email: "admin@example.com",
-        password: "admin", // In production, hash this password
-        role: "Admin",
-        status: "Active",
-      },
-    }).then(([user, created]) => {
-      if (created) {
-        console.log("Default admin user created");
-      }
+      // Create default admin user if it doesn't exist
+      db.User.findOrCreate({
+        where: { email: "admin@example.com" },
+        defaults: {
+          firstName: "Admin",
+          lastName: "User",
+          email: "admin@example.com",
+          password: "admin", // In production, hash this password
+          role: "Admin",
+          status: "Active",
+        },
+      }).then(([user, created]) => {
+        if (created) {
+          console.log("Default admin user created");
+        }
+      });
     });
-  });
-});
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+startServer();

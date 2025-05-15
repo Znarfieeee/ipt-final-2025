@@ -6,6 +6,7 @@ const Role = require("../_helpers/role")
 const { createSchema, updateSchema } = require("../models/workflow.model")
 
 router.post("/", authorize(Role.Admin), create)
+router.get("/", authorize(Role.Admin), getAll)
 router.get("/employee/:employeeId", authorize(), getByEmployeeId)
 router.put("/:id/status", authorize(Role.Admin), updateStatus)
 router.post("/onboarding", authorize(Role.Admin), onboarding)
@@ -14,6 +15,17 @@ async function create(req, res, next) {
     try {
         const workflow = await db.Workflow.create(req.body)
         res.status(201).json(workflow)
+    } catch (err) {
+        next(err)
+    }
+}
+
+async function getAll(req, res, next) {
+    try {
+        const workflows = await db.Workflow.findAll({
+            include: [{ model: db.Employee }]
+        })
+        res.json(workflows)
     } catch (err) {
         next(err)
     }

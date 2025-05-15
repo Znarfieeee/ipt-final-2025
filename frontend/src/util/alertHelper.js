@@ -1,23 +1,79 @@
-/**
- * Utility for displaying toast notifications
- * This is a simple implementation that can be replaced with a real toast library like react-toastify
- */
+import Swal from "sweetalert2"
 
-export const showToast = (type, message) => {
-    // In a real application, this would use a proper toast library
-    // For now, we'll just use console and alert for simplicity
+export const Toast = Swal.mixin({
+    toast: true,
+    position: "top-end",
+    showConfirmButton: false,
+    timer: 2000,
+    timerProgressBar: true,
+    didOpen: toast => {
+        toast.addEventListener("mouseenter", Swal.stopTimer)
+        toast.addEventListener("mouseleave", Swal.resumeTimer)
+    },
+})
 
-    if (type === "success") {
-        console.log("✅ Success:", message)
-        alert(`✅ Success: ${message}`)
-    } else if (type === "error") {
-        console.error("❌ Error:", message)
-        alert(`❌ Error: ${message}`)
-    } else if (type === "warning") {
-        console.warn("⚠️ Warning:", message)
-        alert(`⚠️ Warning: ${message}`)
-    } else {
-        console.info("ℹ️ Info:", message)
-        alert(`ℹ️ Info: ${message}`)
-    }
+export const showToast = (icon, title) => {
+    Toast.fire({
+        icon,
+        title,
+    })
+}
+
+// Success toast - green checkmark
+export const successToast = (message) => {
+    showToast('success', message)
+}
+
+// Error toast - red X
+export const errorToast = (message) => {
+    showToast('error', message)
+}
+
+// Warning toast - yellow exclamation
+export const warningToast = (message) => {
+    showToast('warning', message)
+}
+
+// Info toast - blue i
+export const infoToast = (message) => {
+    showToast('info', message)
+}
+
+// Confirmation dialog with Yes/No options
+export const confirmAlert = async (title, text, confirmButtonText = 'Yes') => {
+    const result = await Swal.fire({
+        title,
+        text,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText,
+        cancelButtonText: 'No'
+    })
+    
+    return result.isConfirmed
+}
+
+// Error alert (modal)
+export const errorAlert = (title, text = '') => {
+    return Swal.fire({
+        icon: 'error',
+        title,
+        text
+    })
+}
+
+// Success alert (modal)
+export const successAlert = (title, text = '') => {
+    return Swal.fire({
+        icon: 'success',
+        title,
+        text
+    })
+}
+
+// Custom alert with custom options
+export const customAlert = (options) => {
+    return Swal.fire(options)
 }

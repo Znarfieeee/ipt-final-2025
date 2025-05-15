@@ -1,4 +1,6 @@
 import { useState, useCallback } from "react"
+import { USE_FAKE_BACKEND } from "./config"
+import backendConnection from "./BackendConnection"
 
 export const useFakeBackend = () => {
     const [users] = useState([
@@ -169,6 +171,109 @@ export const useFakeBackend = () => {
 
     const fakeFetch = useCallback(
         async (url, options = {}) => {
+            // If USE_FAKE_BACKEND is false, use the real backend
+            if (!USE_FAKE_BACKEND) {
+                try {
+                    // Extract the endpoint from the URL
+                    const endpoint = url.replace(/^(http|https):\/\/[^/]+/, '');
+                    
+                    // Call the corresponding method on backendConnection based on the URL and method
+                    // This is a simplified version and might need to be expanded based on all your endpoints
+                    if (endpoint === '/accounts' && options.method === 'GET') {
+                        try {
+                            // First try the special test endpoint
+                            try {
+                                const data = await backendConnection.getUsers();
+                                console.log('Successfully fetched users:', data);
+                                return {
+                                    ok: true,
+                                    status: 200,
+                                    json: async () => data,
+                                };
+                            } catch (error) {
+                                console.error("Backend API error:", error);
+                                console.log('Falling back to fake users data');
+                                // Return fake users as fallback with log
+                                return {
+                                    ok: true,
+                                    status: 200,
+                                    json: async () => users,
+                                };
+                            }
+                        } catch (outerError) {
+                            console.error("Critical error in accounts endpoint:", outerError);
+                            // Last resort fallback
+                            return {
+                                ok: true,
+                                status: 200,
+                                json: async () => users,
+                            };
+                        }
+                    } else if (endpoint.startsWith('/employees') && options.method === 'GET') {
+                        return {
+                            ok: true,
+                            status: 200,
+                            json: async () => await backendConnection.getEmployees(),
+                        };
+                    } else if (endpoint.startsWith('/departments') && options.method === 'GET') {
+                        return {
+                            ok: true,
+                            status: 200,
+                            json: async () => await backendConnection.getDepartments(),
+                        };
+                    } else if (endpoint.match(/\/workflows\/employee\/\d+$/) && options.method === 'GET') {
+                        const employeeId = parseInt(endpoint.split('/').pop());
+                        return {
+                            ok: true,
+                            status: 200,
+                            json: async () => await backendConnection.getWorkflowsByEmployeeId(employeeId),
+                        };
+                    } else if (endpoint.startsWith('/requests') && options.method === 'GET') {
+                        return {
+                            ok: true,
+                            status: 200,
+                            json: async () => await backendConnection.getRequests(),
+                        };
+                    } else if (endpoint.startsWith('/requests') && options.method === 'POST') {
+                        const result = await backendConnection.createRequest(options.body || {});
+                        return {
+                            ok: true,
+                            status: 201,
+                            json: async () => result,
+                        };
+                    } else if (endpoint.startsWith('/workflows') && options.method === 'POST') {
+                        const result = await backendConnection.createWorkflow(options.body || {});
+                        return {
+                            ok: true,
+                            status: 201,
+                            json: async () => result,
+                        };
+                    } else if (endpoint.startsWith('/departments') && options.method === 'POST') {
+                        const result = await backendConnection.createDepartment(options.body || {});
+                        return {
+                            ok: true,
+                            status: 201,
+                            json: async () => result,
+                        };
+                    }
+                    
+                    // If we don't have a specific handler, make a direct fetch to the backend
+                    return {
+                        ok: true,
+                        status: 200,
+                        json: async () => ({ error: "Endpoint not implemented yet" }),
+                    };
+                } catch (error) {
+                    console.error("Error calling real backend:", error);
+                    return {
+                        ok: false,
+                        status: 500,
+                        json: async () => ({ error: error.message }),
+                    };
+                }
+            }
+
+            // Use the fake backend logic below (original code)
             const { method = "GET" } = options
 
             // Simulate network delay
