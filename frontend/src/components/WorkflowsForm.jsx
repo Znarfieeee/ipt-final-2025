@@ -3,6 +3,7 @@ import { useFakeBackend } from "../api/fakeBackend"
 
 // UI Components
 import { BiArrowBack } from "react-icons/bi"
+import { showToast } from "../util/alertHelper"
 
 function WorkflowsForm({ initialData, onCancel }) {
     const { fakeFetch } = useFakeBackend()
@@ -16,7 +17,7 @@ function WorkflowsForm({ initialData, onCancel }) {
                 const data = await response.json()
                 setWorkflows(data)
             } catch (err) {
-                console.error("Error fetching workflows:", err)
+                showToast("error", "Failed to fetch workflows")
             } finally {
                 setLoading(false)
             }
@@ -32,7 +33,7 @@ function WorkflowsForm({ initialData, onCancel }) {
             })
             setWorkflows(prev => prev.map(w => (w.id === workflowId ? { ...w, status: newStatus } : w)))
         } catch (err) {
-            console.error("Error updating workflow status:", err)
+            showToast("error", "Failed to update workflow status")
         }
     }
 

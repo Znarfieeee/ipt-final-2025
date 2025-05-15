@@ -1,3 +1,5 @@
+import { showToast } from "../util/alertHelper";
+
 const BASE_URL = "http://localhost:3000/api";
 
 class BackendConnection {
@@ -25,12 +27,12 @@ class BackendConnection {
             // Try the users endpoint
             return await this.fetchData('/auth/users');
         } catch (error) {
-            console.warn('Failed to fetch users from /auth/users, trying /auth/accounts:', error);
+            showToast("error", "Failed to fetch users from /auth/users, trying /auth/accounts");
             try {
                 // Try the accounts endpoint as fallback
                 return await this.fetchData('/auth/accounts');
             } catch (secondError) {
-                console.warn('Failed to fetch from /auth/accounts, trying root endpoint:', secondError);
+                showToast("error", "Failed to fetch users from /auth/accounts, trying /auth");
                 // Try the root endpoint as last resort
                 return await this.fetchData('/auth');
             }
@@ -193,13 +195,17 @@ class BackendConnection {
             } else {
                 // Handle non-JSON response
                 const text = await response.text();
-                console.error('Received non-JSON response:', text.substring(0, 100) + '...');
+                showToast("error", "Server returned non-JSON response: " + text);
                 throw new Error('Server returned non-JSON response. The server might be down or misconfigured.');
             }
         } catch (error) {
-            console.error('API request failed:', error);
+            showToast("error", "Error fetching data: " + error.message);
             throw error;
         }
+    }
+
+    async getAuthEmployees() {
+        return this.fetchData('/auth/employees');
     }
 }
 

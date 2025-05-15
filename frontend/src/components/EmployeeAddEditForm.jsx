@@ -24,10 +24,14 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
                     fakeFetch("/accounts"),
                 ])
 
-                const [departments, users] = await Promise.all([deptsResponse.json(), usersResponse.json()])
+                const [departments, users] = await Promise.all([
+                    deptsResponse.json(),
+                    usersResponse.json(),
+                ])
 
-                setDepartments(departments)
-                setUsers(users)
+                // Ensure both departments and users are arrays before setting them
+                setDepartments(Array.isArray(departments) ? departments : [])
+                setUsers(Array.isArray(users) ? users : [])
 
                 // If editing, set user email and other fields
                 if (initialData) {
@@ -46,6 +50,8 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
                 }
             } catch (err) {
                 console.error("Error fetching data:", err)
+                setDepartments([]) // Set fallback empty arrays in case of error
+                setUsers([])
             }
         }
         fetchData()

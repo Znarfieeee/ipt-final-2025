@@ -123,6 +123,11 @@ export const useFakeBackend = () => {
                 return { ...employees[employeeIndex], ...body }
             }
 
+            // Auth Employees Route
+            if (url.endsWith("/auth/employees") && method === "GET") {
+                return employees;
+            }
+
             // Department Routes
             if (url.endsWith("/departments") && method === "GET") {
                 return departments

@@ -1,6 +1,10 @@
 import React, { useState } from "react"
+import { useFakeBackend } from "../api/fakeBackend";
+import { showToast } from "../util/alertHelper";
 
 function AccountsAddForm({ onSubmit, onCancel, initialData }) {
+    const { fakeFetch } = useFakeBackend();
+
     const [formData, setFormData] = useState({
         title: initialData?.title || "",
         firstName: initialData?.firstName || "",
@@ -18,10 +22,29 @@ function AccountsAddForm({ onSubmit, onCancel, initialData }) {
         }))
     }
 
-    const handleSubmit = e => {
-        e.preventDefault()
-        onSubmit?.(formData)
-    }
+    const handleSubmit = async e => {
+        e.preventDefault();
+        try {
+            const method = initialData ? "PUT" : "POST";
+            const url = initialData ? `/accounts/${initialData.id}` : "/accounts";
+
+            const response = await fakeFetch(url, {
+                method,
+                body: formData,
+            });
+
+            const data = await response.json();
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            showToast("success", `Account ${initialData ? "updated" : "created"} successfully!`);
+            onSubmit?.(data);
+        } catch (error) {
+            showToast("error", error.message || "An error occurred while submitting the account");
+            alert(error.message || "An error occurred while submitting the account");
+        }
+    };
 
     return (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center">

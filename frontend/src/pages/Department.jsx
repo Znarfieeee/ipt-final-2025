@@ -9,6 +9,7 @@ import ButtonWithIcon from "../components/ButtonWithIcon"
 // UI Libraries
 import { CiEdit } from "react-icons/ci"
 import { IoAddSharp } from "react-icons/io5"
+import { showToast } from "../util/alertHelper";
 
 function Department() {
     const [depts, setDepts] = useState([])
@@ -54,6 +55,7 @@ function Department() {
     }
 
     const handleFormSubmit = async formData => {
+        e.preventDefault()
         try {
             const method = editingUser ? "PUT" : "POST"
             const url = editingUser ? `/departments/${editingUser.id}` : "/departments"
@@ -74,12 +76,11 @@ function Department() {
             setDepts(updatedData)
 
             // Show success message
-            alert(`Department ${editingUser ? "updated" : "created"} successfully!`)
+            showToast("success", "Department created successfully!")
             setShowForm(false)
             setEditingUser(null)
         } catch (err) {
-            console.error("Error submitting department:", err)
-            alert(err.message || "An error occurred while saving the department")
+            showToast("error", err.message || "An error occurred while saving the department")
         }
     }
 
