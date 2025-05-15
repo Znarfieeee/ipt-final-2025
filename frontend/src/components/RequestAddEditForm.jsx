@@ -6,6 +6,7 @@ import ButtonWithIcon from "./ButtonWithIcon"
 import { IoRemove } from "react-icons/io5"
 import { IoAddSharp } from "react-icons/io5"
 import { useFakeBackend } from "../api/fakeBackend"
+import { showToast } from "../util/alertHelper"
 
 function RequestAddEditForm({ onSubmit, onCancel, initialData }) {
     const { fakeFetch } = useFakeBackend()
@@ -24,14 +25,22 @@ function RequestAddEditForm({ onSubmit, onCancel, initialData }) {
     useEffect(() => {
         const fetchEmployees = async () => {
             try {
-                const response = await fakeFetch("/employees")
-                const data = await response.json()
-                setEmployees(data)
+                const response = await fakeFetch("/employees");
+                const data = await response.json();
+
+                // Ensure the data is an array before setting it
+                if (Array.isArray(data)) {
+                    setEmployees(data);
+                } else {
+                    showToast("error", "Invalid employee data format")
+                    setEmployees([]); // Set to an empty array if data is not valid
+                }
             } catch (error) {
-                console.error("Error fetching employees:", error)
+                showToast("error", "Failed to fetch employees")
+                setEmployees([]); // Set to an empty array in case of an error
             }
-        }
-        fetchEmployees()
+        };
+        fetchEmployees();
     }, [fakeFetch])
 
     const handleChange = e => {
@@ -79,7 +88,7 @@ function RequestAddEditForm({ onSubmit, onCancel, initialData }) {
             alert("Request " + (initialData ? "updated" : "created") + " successfully!")
             onSubmit?.(data)
         } catch (error) {
-            console.error("Error submitting request:", error)
+            showToast("error", error.message || "An error occurred while submitting the request")
             alert(error.message || "An error occurred while submitting the request")
         }
     }

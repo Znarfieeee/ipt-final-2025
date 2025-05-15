@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { useFakeBackend } from "../api/fakeBackend"
+import { showToast } from "../util/alertHelper"
 
 function TransferForm({ initialData, onSubmit, onCancel }) {
     const { fakeFetch } = useFakeBackend()
@@ -15,7 +16,7 @@ function TransferForm({ initialData, onSubmit, onCancel }) {
                 const data = await response.json()
                 setDepartments(data)
             } catch (err) {
-                console.error("Error fetching departments:", err)
+                showToast("error", "Failed to fetch departments")
             }
         }
         fetchDepartments()

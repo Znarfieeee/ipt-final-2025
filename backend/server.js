@@ -112,7 +112,6 @@ app.post(
         token,
       });
     } catch (error) {
-      console.error("Login error:", error);
       res.status(500).json({ message: "Error during login process" });
     }
   }
