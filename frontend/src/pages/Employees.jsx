@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react"
 import { useFakeBackend } from "../api/fakeBackend"
 
 // Components
-import AccountsAddForm from "../components/AccountsAddEditForm"
+import EmployeeAddForm from "../components/EmployeeAddEditForm"
 import ButtonWithIcon from "../components/ButtonWithIcon"
 
 // UI Libraries
@@ -10,13 +10,13 @@ import { GoGitPullRequest, GoWorkflow } from "react-icons/go"
 import { TbTransfer } from "react-icons/tb"
 import { IoAddSharp } from "react-icons/io5"
 import { CiEdit } from "react-icons/ci"
-import { TooltipButton } from "@/util/TooltipHelper"
 
 function Employees() {
     const [employees, setEmployees] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
     const [showForm, setShowForm] = useState(false)
+    const [editingUser, setEditingUser] = useState(null)
     const { fakeFetch } = useFakeBackend()
 
     useEffect(() => {
@@ -40,7 +40,17 @@ function Employees() {
                 if (employeesData.error) throw new Error(employeesData.error)
                 if (usersData.error) throw new Error(usersData.error)
 
-                setEmployees(employeesData)
+                // Combine employee data with user account details
+                const employeesWithUserInfo = employeesData.map(employee => {
+                    const user = usersData.find(user => user.employeeId === employee.employeeId)
+                    const userType = user ? (user.role === "Admin" ? "Admin User" : "Normal User") : "Unknown User"
+                    return {
+                        ...employee,
+                        userEmail: user ? `${user.email} (${userType})` : "No email assigned",
+                    }
+                })
+
+                setEmployees(employeesWithUserInfo)
                 setError(null)
             } catch (err) {
                 console.error("Error fetching data: ", err)
@@ -51,6 +61,36 @@ function Employees() {
         }
         fetchData()
     }, [fakeFetch])
+
+    const handleFormSubmit = async formData => {
+        try {
+            const method = editingUser ? "PUT" : "POST"
+            const url = editingUser ? `/departments/${editingUser.id}` : "/employees"
+
+            const response = await fakeFetch(url, {
+                method,
+                body: formData,
+            })
+
+            const data = await response.json()
+            if (data.error) {
+                throw new Error(data.error)
+            }
+
+            // Refresh the departments list
+            const updatedResponse = await fakeFetch("/departments")
+            const updatedData = await updatedResponse.json()
+            setEmployees(updatedData)
+
+            // Show success message
+            alert(`Employee ${editingUser ? "updated" : "created"} successfully!`)
+            setShowForm(false)
+            setEditingUser(null)
+        } catch (err) {
+            console.error("Error submitting department:", err)
+            alert(err.message || "An error occurred while saving the department")
+        }
+    }
 
     function handleStatus(status) {
         const statusStyles = {
@@ -94,6 +134,11 @@ function Employees() {
     const handleEdit = user => {
         setEditingUser(user)
         setShowForm(true)
+    }
+
+    const handleFormCancel = () => {
+        setShowForm(false)
+        setEditingUser(null)
     }
 
     return (
@@ -184,7 +229,7 @@ function Employees() {
                                             icon={CiEdit}
                                             text=""
                                             tooltipContent="Edit"
-                                            onClick={handleAdd}
+                                            onClick={handleEdit}
                                             variant="primary"
                                         />
                                     </td>
@@ -201,7 +246,7 @@ function Employees() {
                 </table>
             </div>
             {showForm && (
-                <AccountsAddForm onSubmit={handleFormSubmit} onCancel={handleFormCancel} initialData={editingUser} />
+                <EmployeeAddForm onSubmit={handleFormSubmit} onCancel={handleFormCancel} initialData={editingUser} />
             )}
         </>
     )

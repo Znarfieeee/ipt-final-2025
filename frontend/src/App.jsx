@@ -7,6 +7,8 @@ import Layout from "./components/Layout/Layout"
 import Department from "./pages/Department"
 import Employees from "./pages/Employees"
 import Requests from "./pages/Requests"
+import NotFound from "./pages/NotFound"
+import Home from "./pages/Home"
 
 function App() {
     const router = createBrowserRouter([
@@ -14,6 +16,10 @@ function App() {
             path: "/",
             element: <Layout />,
             children: [
+                {
+                    index: true,
+                    element: <Home />,
+                },
                 {
                     path: "accounts",
                     element: <Accounts />,
@@ -35,6 +41,10 @@ function App() {
         {
             path: "/login",
             element: <Login />,
+        },
+        {
+            path: "*",
+            element: <NotFound />,
         },
     ])
 
