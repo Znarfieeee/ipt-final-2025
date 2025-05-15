@@ -30,41 +30,48 @@ function Employees() {
         const fetchData = async () => {
             try {
                 // Fetch both employees and users data
-                const [employeesResponse, usersResponse] = await Promise.all([
-                    fakeFetch("/employees", {
+                const employeesResponse = await fakeFetch("/employees", {
+                    method: "GET",
+                    body: "",
+                });
+                
+                const employeesData = await employeesResponse.json();
+                if (employeesData.error) throw new Error(employeesData.error);
+                
+                // Fetch users separately with error handling
+                let usersData = [];
+                try {
+                    const usersResponse = await fakeFetch("/accounts", {
                         method: "GET",
                         body: "",
-                    }),
-                    fakeFetch("/accounts", {
-                        method: "GET",
-                        body: "",
-                    }),
-                ])
+                    });
+                    usersData = await usersResponse.json();
+                    if (usersData.error) console.warn("User data fetch error:", usersData.error);
+                } catch (userErr) {
+                    console.warn("Failed to fetch user data:", userErr.message);
+                    // Continue with empty users array
+                }
 
-                const employeesData = await employeesResponse.json()
-                const usersData = await usersResponse.json()
-
-                if (employeesData.error) throw new Error(employeesData.error)
-                if (usersData.error) throw new Error(usersData.error) // Combine employee data with user account details
+                // Combine employee data with user account details
                 const employeesWithUserInfo = employeesData.map(employee => {
-                    const user = usersData.find(user => user.id === employee.userId)
+                    const user = usersData.find(user => user && user.id === employee.userId);
                     return {
                         ...employee,
                         userEmail: user ? `${user.email}` : "No email assigned",
                     }
-                })
+                });
 
-                setEmployees(employeesWithUserInfo)
-                setError(null)
+                setEmployees(employeesWithUserInfo);
+                setError(null);
             } catch (err) {
-                console.error("Error fetching data: ", err)
-                setError(err.message)
+                console.error("Error fetching data: ", err);
+                setError(err.message);
             } finally {
-                setLoading(false)
+                setLoading(false);
             }
         }
-        fetchData()
-    }, [fakeFetch])
+        fetchData();
+    }, [fakeFetch]);
 
     const handleFormSubmit = async formData => {
         try {

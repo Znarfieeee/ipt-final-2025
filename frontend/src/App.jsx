@@ -9,12 +9,18 @@ import Employees from "./pages/Employees"
 import Requests from "./pages/Requests"
 import NotFound from "./pages/NotFound"
 import Home from "./pages/Home"
+import BackendToggle from "./components/BackendToggle"
+import ProtectedRoute from "./components/ProtectedRoute"
 
 function App() {
     const router = createBrowserRouter([
         {
             path: "/",
-            element: <Layout />,
+            element: (
+                <ProtectedRoute>
+                    <Layout />
+                </ProtectedRoute>
+            ),
             children: [
                 {
                     index: true,
@@ -51,6 +57,7 @@ function App() {
     return (
         <AppProvider>
             <RouterProvider router={router} />
+            <BackendToggle />
         </AppProvider>
     )
 }
