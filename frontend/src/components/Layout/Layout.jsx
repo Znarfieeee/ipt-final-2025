@@ -42,7 +42,7 @@ const Layout = () => {
                     <div className="flex flex-col md:flex-row items-center gap-6">
                         {/* {api.isAuthenticated() ? ( */}
                         <>
-                            <Link to="/" className="text-gray-200 hover:text-blue-400 transition-colors">
+                            <Link to="/accounts" className="text-gray-200 hover:text-blue-400 transition-colors">
                                 Accounts
                             </Link>
                             <Link to="/employees" className="text-gray-200 hover:text-blue-400 transition-colors">

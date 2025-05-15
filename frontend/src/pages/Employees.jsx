@@ -1,23 +1,30 @@
 import React, { useState, useEffect } from "react"
 import { useFakeBackend } from "../api/fakeBackend"
-
+import { useNavigate } from "react-router-dom"
 // Components
-import AccountsAddForm from "../components/AccountsAddEditForm"
+import EmployeeAddForm from "../components/EmployeeAddEditForm"
 import ButtonWithIcon from "../components/ButtonWithIcon"
+import TransferForm from "../components/TransferForm"
+import WorkflowsForm from "../components/WorkflowsForm"
 
 // UI Libraries
 import { GoGitPullRequest, GoWorkflow } from "react-icons/go"
 import { TbTransfer } from "react-icons/tb"
 import { IoAddSharp } from "react-icons/io5"
 import { CiEdit } from "react-icons/ci"
-import { TooltipButton } from "@/util/TooltipHelper"
 
 function Employees() {
     const [employees, setEmployees] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
     const [showForm, setShowForm] = useState(false)
+    const [editingUser, setEditingUser] = useState(null)
+    const [showTransferForm, setShowTransferForm] = useState(false)
+    const [transferringEmployee, setTransferringEmployee] = useState(null)
+    const [showWorkflowsForm, setShowWorkflowsForm] = useState(false)
+    const [selectedEmployee, setSelectedEmployee] = useState(null)
     const { fakeFetch } = useFakeBackend()
+    const navigate = useNavigate()
 
     useEffect(() => {
         const fetchData = async () => {
@@ -38,9 +45,16 @@ function Employees() {
                 const usersData = await usersResponse.json()
 
                 if (employeesData.error) throw new Error(employeesData.error)
-                if (usersData.error) throw new Error(usersData.error)
+                if (usersData.error) throw new Error(usersData.error) // Combine employee data with user account details
+                const employeesWithUserInfo = employeesData.map(employee => {
+                    const user = usersData.find(user => user.id === employee.userId)
+                    return {
+                        ...employee,
+                        userEmail: user ? `${user.email}` : "No email assigned",
+                    }
+                })
 
-                setEmployees(employeesData)
+                setEmployees(employeesWithUserInfo)
                 setError(null)
             } catch (err) {
                 console.error("Error fetching data: ", err)
@@ -51,6 +65,44 @@ function Employees() {
         }
         fetchData()
     }, [fakeFetch])
+
+    const handleFormSubmit = async formData => {
+        try {
+            const method = editingUser ? "PUT" : "POST"
+            const url = editingUser ? `/employees/${editingUser.id}` : "/employees"
+
+            // Prepare the data for submission
+            const submissionData = {
+                ...formData,
+                id: editingUser?.id,
+                departmentId: parseInt(formData.departmentId),
+                hireDate: formData.hireDate.toISOString().split("T")[0],
+            }
+
+            const response = await fakeFetch(url, {
+                method,
+                body: submissionData,
+            })
+
+            const data = await response.json()
+            if (data.error) {
+                throw new Error(data.error)
+            }
+
+            // Refresh the employees list
+            const updatedResponse = await fakeFetch("/employees")
+            const updatedData = await updatedResponse.json()
+            setEmployees(updatedData)
+
+            // Show success message
+            alert(`Employee ${editingUser ? "updated" : "created"} successfully!`)
+            setShowForm(false)
+            setEditingUser(null)
+        } catch (err) {
+            console.error("Error submitting employee:", err)
+            alert(err.message || "An error occurred while saving the employee")
+        }
+    }
 
     function handleStatus(status) {
         const statusStyles = {
@@ -85,15 +137,87 @@ function Employees() {
             </div>
         )
     }
+    const getNextEmployeeId = () => {
+        const latestEmployee = [...employees].sort((a, b) => {
+            const aNum = parseInt(a.employeeId.replace("EMP", ""))
+            const bNum = parseInt(b.employeeId.replace("EMP", ""))
+            return bNum - aNum
+        })[0]
+
+        const lastNumber = latestEmployee ? parseInt(latestEmployee.employeeId.replace("EMP", "")) : 0
+        const nextNumber = (lastNumber + 1).toString().padStart(3, "0")
+        return `EMP${nextNumber}`
+    }
 
     const handleAdd = () => {
-        setEditingUser(null)
+        const nextEmployeeId = getNextEmployeeId()
+        setEditingUser({ employeeId: nextEmployeeId })
         setShowForm(true)
     }
 
-    const handleEdit = user => {
-        setEditingUser(user)
+    const handleEdit = employee => {
+        // Make sure we have all the necessary data
+        setEditingUser({
+            id: employee.id,
+            employeeId: employee.employeeId,
+            userId: employee.userId,
+            position: employee.position,
+            departmentId: employee.departmentId,
+            hireDate: employee.hireDate,
+            status: employee.status,
+        })
         setShowForm(true)
+    }
+
+    const handleFormCancel = () => {
+        setShowForm(false)
+        setEditingUser(null)
+    }
+
+    const handleWorkflows = employee => {
+        setSelectedEmployee(employee)
+        setShowWorkflowsForm(true)
+    }
+
+    const handleWorkflowsClose = () => {
+        setShowWorkflowsForm(false)
+        setSelectedEmployee(null)
+    }
+
+    const handleTransfer = employee => {
+        setTransferringEmployee(employee)
+        setShowTransferForm(true)
+    }
+
+    const handleTransferSubmit = async formData => {
+        try {
+            const response = await fakeFetch(`/employees/${transferringEmployee.id}/transfer`, {
+                method: "PUT",
+                body: formData,
+            })
+
+            const data = await response.json()
+            if (data.error) {
+                throw new Error(data.error)
+            }
+
+            // Refresh the employees list
+            const updatedResponse = await fakeFetch("/employees")
+            const updatedData = await updatedResponse.json()
+            setEmployees(updatedData)
+
+            alert("Employee transferred successfully!")
+            setShowTransferForm(false)
+            setTransferringEmployee(null)
+        } catch (err) {
+            console.error("Error transferring employee:", err)
+            alert(err.message || "An error occurred while transferring the employee")
+        }
+    }
+
+    const handleTransferCancel = () => {
+        setShowTransferForm(false)
+        setTransferringEmployee(null)
     }
 
     return (
@@ -163,28 +287,28 @@ function Employees() {
                                             icon={GoGitPullRequest}
                                             text=""
                                             tooltipContent="Request"
-                                            onClick={handleAdd}
+                                            onClick={() => navigate("/requests")}
                                             variant="orange"
                                         />
                                         <ButtonWithIcon
                                             icon={GoWorkflow}
                                             text=""
                                             tooltipContent="Workflows"
-                                            onClick={handleAdd}
+                                            onClick={() => handleWorkflows(employee)}
                                             variant="pink"
                                         />
                                         <ButtonWithIcon
                                             icon={TbTransfer}
                                             text=""
                                             tooltipContent="Transfer"
-                                            onClick={handleAdd}
+                                            onClick={() => handleTransfer(employee)}
                                             variant="warning"
                                         />
                                         <ButtonWithIcon
                                             icon={CiEdit}
                                             text=""
                                             tooltipContent="Edit"
-                                            onClick={handleAdd}
+                                            onClick={() => handleEdit(employee)}
                                             variant="primary"
                                         />
                                     </td>
@@ -201,8 +325,16 @@ function Employees() {
                 </table>
             </div>
             {showForm && (
-                <AccountsAddForm onSubmit={handleFormSubmit} onCancel={handleFormCancel} initialData={editingUser} />
+                <EmployeeAddForm onSubmit={handleFormSubmit} onCancel={handleFormCancel} initialData={editingUser} />
             )}
+            {showTransferForm && (
+                <TransferForm
+                    onSubmit={handleTransferSubmit}
+                    onCancel={handleTransferCancel}
+                    initialData={transferringEmployee}
+                />
+            )}
+            {showWorkflowsForm && <WorkflowsForm initialData={selectedEmployee} onCancel={handleWorkflowsClose} />}
         </>
     )
 }
