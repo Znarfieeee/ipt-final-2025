@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom"
 // Components
 import EmployeeAddForm from "../components/EmployeeAddEditForm"
 import ButtonWithIcon from "../components/ButtonWithIcon"
+import TransferForm from "../components/TransferForm"
+import WorkflowsForm from "../components/WorkflowsForm"
 
 // UI Libraries
 import { GoGitPullRequest, GoWorkflow } from "react-icons/go"
@@ -17,6 +19,10 @@ function Employees() {
     const [error, setError] = useState(null)
     const [showForm, setShowForm] = useState(false)
     const [editingUser, setEditingUser] = useState(null)
+    const [showTransferForm, setShowTransferForm] = useState(false)
+    const [transferringEmployee, setTransferringEmployee] = useState(null)
+    const [showWorkflowsForm, setShowWorkflowsForm] = useState(false)
+    const [selectedEmployee, setSelectedEmployee] = useState(null)
     const { fakeFetch } = useFakeBackend()
     const navigate = useNavigate()
 
@@ -42,10 +48,9 @@ function Employees() {
                 if (usersData.error) throw new Error(usersData.error) // Combine employee data with user account details
                 const employeesWithUserInfo = employeesData.map(employee => {
                     const user = usersData.find(user => user.id === employee.userId)
-                    const userType = user ? (user.role === "Admin" ? "Admin User" : "Normal User") : "Unknown User"
                     return {
                         ...employee,
-                        userEmail: user ? `${user.email} (${userType})` : "No email assigned",
+                        userEmail: user ? `${user.email}` : "No email assigned",
                     }
                 })
 
@@ -169,6 +174,52 @@ function Employees() {
         setEditingUser(null)
     }
 
+    const handleWorkflows = employee => {
+        setSelectedEmployee(employee)
+        setShowWorkflowsForm(true)
+    }
+
+    const handleWorkflowsClose = () => {
+        setShowWorkflowsForm(false)
+        setSelectedEmployee(null)
+    }
+
+    const handleTransfer = employee => {
+        setTransferringEmployee(employee)
+        setShowTransferForm(true)
+    }
+
+    const handleTransferSubmit = async formData => {
+        try {
+            const response = await fakeFetch(`/employees/${transferringEmployee.id}/transfer`, {
+                method: "PUT",
+                body: formData,
+            })
+
+            const data = await response.json()
+            if (data.error) {
+                throw new Error(data.error)
+            }
+
+            // Refresh the employees list
+            const updatedResponse = await fakeFetch("/employees")
+            const updatedData = await updatedResponse.json()
+            setEmployees(updatedData)
+
+            alert("Employee transferred successfully!")
+            setShowTransferForm(false)
+            setTransferringEmployee(null)
+        } catch (err) {
+            console.error("Error transferring employee:", err)
+            alert(err.message || "An error occurred while transferring the employee")
+        }
+    }
+
+    const handleTransferCancel = () => {
+        setShowTransferForm(false)
+        setTransferringEmployee(null)
+    }
+
     return (
         <>
             <div className="bg-white shadow-md rounded-lg p-6">
@@ -243,14 +294,14 @@ function Employees() {
                                             icon={GoWorkflow}
                                             text=""
                                             tooltipContent="Workflows"
-                                            onClick={handleAdd}
+                                            onClick={() => handleWorkflows(employee)}
                                             variant="pink"
                                         />
                                         <ButtonWithIcon
                                             icon={TbTransfer}
                                             text=""
                                             tooltipContent="Transfer"
-                                            onClick={handleAdd}
+                                            onClick={() => handleTransfer(employee)}
                                             variant="warning"
                                         />
                                         <ButtonWithIcon
@@ -276,6 +327,14 @@ function Employees() {
             {showForm && (
                 <EmployeeAddForm onSubmit={handleFormSubmit} onCancel={handleFormCancel} initialData={editingUser} />
             )}
+            {showTransferForm && (
+                <TransferForm
+                    onSubmit={handleTransferSubmit}
+                    onCancel={handleTransferCancel}
+                    initialData={transferringEmployee}
+                />
+            )}
+            {showWorkflowsForm && <WorkflowsForm initialData={selectedEmployee} onCancel={handleWorkflowsClose} />}
         </>
     )
 }
