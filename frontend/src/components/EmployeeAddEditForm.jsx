@@ -44,41 +44,55 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
                             </div>
                             <div>
                                 <label htmlFor="employeeId" className="block text-sm font-medium text-foreground mb-1">
-                                    Employee ID
+                                    Account
                                 </label>
                                 <input
                                     type="text"
-                                    id="employeeId"
-                                    name="employeeId"
-                                    value={formData.employeeId}
+                                    id="account"
+                                    name="account"
+                                    value={formData.userEmail}
                                     onChange={handleChange}
                                     className="w-full p-2 rounded-md border border-input bg-background text-foreground"
                                     required
                                 />
                             </div>
                             <div>
-                                <label htmlFor="employeeId" className="block text-sm font-medium text-foreground mb-1">
-                                    Employee ID
+                                <label htmlFor="position" className="block text-sm font-medium text-foreground mb-1">
+                                    Position
                                 </label>
                                 <input
                                     type="text"
-                                    id="employeeId"
-                                    name="employeeId"
-                                    value={formData.employeeId}
+                                    id="position"
+                                    name="position"
+                                    value={formData.position}
                                     onChange={handleChange}
                                     className="w-full p-2 rounded-md border border-input bg-background text-foreground"
                                     required
                                 />
                             </div>
                             <div>
-                                <label htmlFor="employeeId" className="block text-sm font-medium text-foreground mb-1">
-                                    Employee ID
+                                <label htmlFor="department" className="block text-sm font-medium text-foreground mb-1">
+                                    Department
                                 </label>
                                 <input
                                     type="text"
-                                    id="employeeId"
-                                    name="employeeId"
-                                    value={formData.employeeId}
+                                    id="department"
+                                    name="department"
+                                    value={formData.department}
+                                    onChange={handleChange}
+                                    className="w-full p-2 rounded-md border border-input bg-background text-foreground"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="hireDate" className="block text-sm font-medium text-foreground mb-1">
+                                    Hire Date
+                                </label>
+                                <input
+                                    type="date"
+                                    id="hireDate"
+                                    name="hireDate"
+                                    value={formData.hireDate}
                                     onChange={handleChange}
                                     className="w-full p-2 rounded-md border border-input bg-background text-foreground"
                                     required
