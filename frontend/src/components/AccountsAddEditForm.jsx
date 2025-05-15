@@ -1,17 +1,15 @@
 import React, { useState } from "react"
-import { useFakeBackend } from "../api/fakeBackend";
-import { showToast } from "../util/alertHelper";
+import backendConnection from "../api/BackendConnection"
+import { showToast } from "../util/alertHelper"
 
 function AccountsAddForm({ onSubmit, onCancel, initialData }) {
-    const { fakeFetch } = useFakeBackend();
-
     const [formData, setFormData] = useState({
         title: initialData?.title || "",
         firstName: initialData?.firstName || "",
         lastName: initialData?.lastName || "",
         email: initialData?.email || "",
-        role: initialData?.role || "",
-        status: initialData?.status || "",
+        role: initialData?.role || "User",
+        status: initialData?.status || "Active",
     })
 
     const handleChange = e => {
@@ -23,28 +21,28 @@ function AccountsAddForm({ onSubmit, onCancel, initialData }) {
     }
 
     const handleSubmit = async e => {
-        e.preventDefault();
+        e.preventDefault()
+
         try {
-            const method = initialData ? "PUT" : "POST";
-            const url = initialData ? `/accounts/${initialData.id}` : "/accounts";
-
-            const response = await fakeFetch(url, {
-                method,
-                body: formData,
-            });
-
-            const data = await response.json();
-            if (data.error) {
-                throw new Error(data.error);
+            // For testing purposes, use a standard password
+            const dataToSend = {
+                ...formData,
+                password: "123qwe", // Standard password for testing
             }
 
-            showToast("success", `Account ${initialData ? "updated" : "created"} successfully!`);
-            onSubmit?.(data);
+            if (initialData) {
+                await backendConnection.updateUser(initialData.id, dataToSend)
+                showToast("success", "Account updated successfully!")
+            } else {
+                await backendConnection.createUser(dataToSend)
+                showToast("success", "Account created successfully!")
+            }
+            onSubmit?.()
         } catch (error) {
-            showToast("error", error.message || "An error occurred while submitting the account");
-            alert(error.message || "An error occurred while submitting the account");
+            console.error("Error submitting account:", error)
+            showToast("error", error.message || "An error occurred while submitting the account")
         }
-    };
+    }
 
     return (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center">
@@ -128,8 +126,8 @@ function AccountsAddForm({ onSubmit, onCancel, initialData }) {
                                 className="w-full p-2 rounded-md border border-input bg-background text-foreground"
                                 required
                             >
-                                <option value="employee">User</option>
-                                <option value="admin">Admin</option>
+                                <option value="User">User</option>
+                                <option value="Admin">Admin</option>
                             </select>
                         </div>
 
@@ -140,7 +138,7 @@ function AccountsAddForm({ onSubmit, onCancel, initialData }) {
                             <select
                                 id="status"
                                 name="status"
-                                value={formData.status ? formData.status : "Inactive"}
+                                value={formData.status}
                                 onChange={handleChange}
                                 className="w-full p-2 rounded-md border border-input bg-background text-foreground"
                                 required

@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react"
 import { useFakeBackend } from "../api/fakeBackend"
+import backendConnection from "../api/BackendConnection"
+import { USE_FAKE_BACKEND } from "../api/config"
 import "../index.css"
+import { showToast } from "../util/alertHelper"
 
 // Components
 import AccountsAddForm from "../components/AccountsAddEditForm"
@@ -21,49 +24,62 @@ const Accounts = () => {
     useEffect(() => {
         const fetchUsers = async () => {
             try {
-                setLoading(true);
-                const response = await fakeFetch("/accounts", {
-                    method: "GET",
-                    body: "",
-                })
+                setLoading(true)
 
-                const data = await response.json()
-                if (data.error) {
-                    throw new Error(data.error)
+                let data
+
+                if (!USE_FAKE_BACKEND) {
+                    // Use real backend
+                    data = await backendConnection.getUsers()
+                } else {
+                    // Use fake backend
+                    const response = await fakeFetch("/accounts", {
+                        method: "GET",
+                        body: "",
+                    })
+
+                    data = await response.json()
+                    if (data.error) {
+                        throw new Error(data.error)
+                    }
                 }
 
                 // Make sure we have valid data
                 if (Array.isArray(data)) {
-                    setUsers(data);
-                } else if (data && typeof data === 'object') {
+                    setUsers(data)
+                } else if (data && typeof data === "object") {
                     // If it's not an array but an object, wrap it
-                    setUsers([data]);
+                    setUsers([data])
                 } else {
                     // Use fallback data if we couldn't get valid data
-                    console.warn("Received invalid user data, using fallback");
-                    setUsers([{
+                    console.warn("Received invalid user data, using fallback")
+                    setUsers([
+                        {
+                            id: 1,
+                            title: "Mr",
+                            firstName: "Admin",
+                            lastName: "User",
+                            email: "admin@example.com",
+                            role: "Admin",
+                            status: "Active",
+                        },
+                    ])
+                }
+                setError(null)
+            } catch (err) {
+                console.error("Error fetching users: ", err)
+                // Use fallback data on error
+                setUsers([
+                    {
                         id: 1,
                         title: "Mr",
                         firstName: "Admin",
                         lastName: "User",
                         email: "admin@example.com",
                         role: "Admin",
-                        status: "Active"
-                    }]);
-                }
-                setError(null)
-            } catch (err) {
-                console.error("Error fetching users: ", err)
-                // Use fallback data on error
-                setUsers([{
-                    id: 1,
-                    title: "Mr",
-                    firstName: "Admin",
-                    lastName: "User",
-                    email: "admin@example.com",
-                    role: "Admin",
-                    status: "Active"
-                }]);
+                        status: "Active",
+                    },
+                ])
                 setError("Could not load users from server. Using fallback data.")
             } finally {
                 setLoading(false)
@@ -95,32 +111,36 @@ const Accounts = () => {
         setShowForm(true)
     }
 
-    const handleFormSubmit = async formData => {
+    const handleFormSubmit = async () => {
         try {
-            const method = editingUser ? "PUT" : "POST"
-            const path = editingUser ? `/accounts/${editingUser.id}` : "/accounts"
-
-            const response = await fakeFetch(path, {
-                method,
-                body: JSON.stringify(formData),
-            })
-
-            const data = await response.json()
-            if (data.error) {
-                throw new Error(data.error)
-            }
-
-            if (editingUser) {
-                setUsers(users.map(u => (u.id === editingUser.id ? { ...data } : u)))
-            } else {
-                setUsers([...users, data])
-            }
-
+            // The AccountsAddEditForm component already has the form submission logic
+            // Just close the form and refresh the user list
             setShowForm(false)
             setEditingUser(null)
+
+            // Refresh the user list
+            setLoading(true)
+            if (!USE_FAKE_BACKEND) {
+                const refreshedUsers = await backendConnection.getUsers()
+                if (Array.isArray(refreshedUsers)) {
+                    setUsers(refreshedUsers)
+                }
+            } else {
+                const response = await fakeFetch("/accounts", {
+                    method: "GET",
+                    body: "",
+                })
+                const data = await response.json()
+                if (!data.error && Array.isArray(data)) {
+                    setUsers(data)
+                }
+            }
+            setLoading(false)
+            showToast("success", editingUser ? "User updated successfully!" : "User added successfully!")
         } catch (err) {
-            console.error("Error saving user: ", err)
+            console.error("Error refreshing user list: ", err)
             setError(err.message)
+            showToast("error", "Failed to refresh user list")
         }
     }
 
@@ -155,13 +175,15 @@ const Accounts = () => {
             <div className="bg-white shadow-md rounded-lg p-6">
                 <div id="table-header" className="flex flex-row justify-between items-center mb-2">
                     <h1 className="text-2xl font-bold capitalize text-foreground">ACCOUNTS</h1>
-                    <ButtonWithIcon
-                        icon={IoAddSharp}
-                        text="Account"
-                        tooltipContent="Add New Account"
-                        onClick={handleAdd}
-                        variant="primary"
-                    />
+                    <div className="flex items-center space-x-4">
+                        <ButtonWithIcon
+                            icon={IoAddSharp}
+                            text="Account"
+                            tooltipContent="Add New Account"
+                            onClick={handleAdd}
+                            variant="primary"
+                        />
+                    </div>
                 </div>
                 <hr className="mb-4" />
                 <table className="min-w-full divide-y divide-gray-200">

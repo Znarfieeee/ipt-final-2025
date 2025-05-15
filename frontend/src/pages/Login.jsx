@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { successToast, errorToast } from "../util/alertHelper"
+import { showToast } from "../util/alertHelper"
 import { USE_FAKE_BACKEND } from "../api/config"
 import useFakeBackend from "../api/fakeBackend"
 import { useAuth } from "../context/AuthContext"
@@ -24,30 +24,30 @@ function Login() {
             if (USE_FAKE_BACKEND) {
                 // Use the fake backend for login
                 const response = await fakeFetch(`http://localhost:3000/api/auth/login`, {
-                    method: 'POST',
-                    body: { email, password }
-                });
-                const result = await response.json();
-                
+                    method: "POST",
+                    body: { email, password },
+                })
+                const result = await response.json()
+
                 if (response.ok) {
                     // Store token in localStorage for future API calls
-                    localStorage.setItem('token', result.token);
-                    localStorage.setItem('userInfo', JSON.stringify(result.user));
-                    successToast("Login successful");
-                    navigate("/");
+                    localStorage.setItem("token", result.token)
+                    localStorage.setItem("userInfo", JSON.stringify(result.user))
+                    showToast("success", "Login successful")
+                    navigate("/")
                 } else {
-                    errorToast(result.message || "Invalid credentials");
+                    showToast("error", "Invalid credentials.")
                 }
             } else {
                 // Use the real backend through auth context
-                await login(email, password);
-                successToast("Login successful");
-                navigate("/");
+                await login(email, password)
+                showToast("success", "Login successful")
+                navigate("/")
             }
         } catch (err) {
-            errorToast("Login failed: " + (err.message || "Unknown error"));
+            showToast("error", "Login failed: " + (err.message || "Unknown error"))
         } finally {
-            setLoading(false);
+            setLoading(false)
         }
     }
 

@@ -9,7 +9,7 @@ import ButtonWithIcon from "../components/ButtonWithIcon"
 // UI Libraries
 import { CiEdit } from "react-icons/ci"
 import { IoAddSharp } from "react-icons/io5"
-import { showToast } from "../util/alertHelper";
+import { showToast } from "../util/alertHelper"
 
 function Department() {
     const [depts, setDepts] = useState([])
@@ -22,21 +22,29 @@ function Department() {
     useEffect(() => {
         const fetchUsers = async () => {
             try {
+                setLoading(true)
+                console.log("Fetching departments...")
                 const response = await fakeFetch("/departments", {
                     method: "GET",
                     body: "",
                 })
+
+                if (!response.ok) {
+                    throw new Error("Failed to fetch departments")
+                }
 
                 const data = await response.json()
                 if (data.error) {
                     throw new Error(data.error)
                 }
 
+                console.log("Departments fetched successfully:", data)
                 setDepts(data)
                 setError(null)
             } catch (err) {
-                console.error("Error fetching department: ", err)
-                setError(err.message)
+                console.error("Error fetching departments: ", err)
+                setError("Failed to load departments. Please try again later.")
+                showToast("error", "Failed to load departments. Please try again later.")
             } finally {
                 setLoading(false)
             }
@@ -55,7 +63,6 @@ function Department() {
     }
 
     const handleFormSubmit = async formData => {
-        e.preventDefault()
         try {
             const method = editingUser ? "PUT" : "POST"
             const url = editingUser ? `/departments/${editingUser.id}` : "/departments"
