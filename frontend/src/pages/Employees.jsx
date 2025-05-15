@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { useFakeBackend } from "../api/fakeBackend"
-
+import { useNavigate } from "react-router-dom"
 // Components
 import EmployeeAddForm from "../components/EmployeeAddEditForm"
 import ButtonWithIcon from "../components/ButtonWithIcon"
@@ -18,6 +18,7 @@ function Employees() {
     const [showForm, setShowForm] = useState(false)
     const [editingUser, setEditingUser] = useState(null)
     const { fakeFetch } = useFakeBackend()
+    const navigate = useNavigate()
 
     useEffect(() => {
         const fetchData = async () => {
@@ -38,11 +39,9 @@ function Employees() {
                 const usersData = await usersResponse.json()
 
                 if (employeesData.error) throw new Error(employeesData.error)
-                if (usersData.error) throw new Error(usersData.error)
-
-                // Combine employee data with user account details
+                if (usersData.error) throw new Error(usersData.error) // Combine employee data with user account details
                 const employeesWithUserInfo = employeesData.map(employee => {
-                    const user = usersData.find(user => user.employeeId === employee.employeeId)
+                    const user = usersData.find(user => user.id === employee.userId)
                     const userType = user ? (user.role === "Admin" ? "Admin User" : "Normal User") : "Unknown User"
                     return {
                         ...employee,
@@ -65,11 +64,19 @@ function Employees() {
     const handleFormSubmit = async formData => {
         try {
             const method = editingUser ? "PUT" : "POST"
-            const url = editingUser ? `/departments/${editingUser.id}` : "/employees"
+            const url = editingUser ? `/employees/${editingUser.id}` : "/employees"
+
+            // Prepare the data for submission
+            const submissionData = {
+                ...formData,
+                id: editingUser?.id,
+                departmentId: parseInt(formData.departmentId),
+                hireDate: formData.hireDate.toISOString().split("T")[0],
+            }
 
             const response = await fakeFetch(url, {
                 method,
-                body: formData,
+                body: submissionData,
             })
 
             const data = await response.json()
@@ -77,8 +84,8 @@ function Employees() {
                 throw new Error(data.error)
             }
 
-            // Refresh the departments list
-            const updatedResponse = await fakeFetch("/departments")
+            // Refresh the employees list
+            const updatedResponse = await fakeFetch("/employees")
             const updatedData = await updatedResponse.json()
             setEmployees(updatedData)
 
@@ -87,8 +94,8 @@ function Employees() {
             setShowForm(false)
             setEditingUser(null)
         } catch (err) {
-            console.error("Error submitting department:", err)
-            alert(err.message || "An error occurred while saving the department")
+            console.error("Error submitting employee:", err)
+            alert(err.message || "An error occurred while saving the employee")
         }
     }
 
@@ -125,14 +132,35 @@ function Employees() {
             </div>
         )
     }
+    const getNextEmployeeId = () => {
+        const latestEmployee = [...employees].sort((a, b) => {
+            const aNum = parseInt(a.employeeId.replace("EMP", ""))
+            const bNum = parseInt(b.employeeId.replace("EMP", ""))
+            return bNum - aNum
+        })[0]
+
+        const lastNumber = latestEmployee ? parseInt(latestEmployee.employeeId.replace("EMP", "")) : 0
+        const nextNumber = (lastNumber + 1).toString().padStart(3, "0")
+        return `EMP${nextNumber}`
+    }
 
     const handleAdd = () => {
-        setEditingUser(null)
+        const nextEmployeeId = getNextEmployeeId()
+        setEditingUser({ employeeId: nextEmployeeId })
         setShowForm(true)
     }
 
-    const handleEdit = user => {
-        setEditingUser(user)
+    const handleEdit = employee => {
+        // Make sure we have all the necessary data
+        setEditingUser({
+            id: employee.id,
+            employeeId: employee.employeeId,
+            userId: employee.userId,
+            position: employee.position,
+            departmentId: employee.departmentId,
+            hireDate: employee.hireDate,
+            status: employee.status,
+        })
         setShowForm(true)
     }
 
@@ -208,7 +236,7 @@ function Employees() {
                                             icon={GoGitPullRequest}
                                             text=""
                                             tooltipContent="Request"
-                                            onClick={handleAdd}
+                                            onClick={() => navigate("/requests")}
                                             variant="orange"
                                         />
                                         <ButtonWithIcon
@@ -229,7 +257,7 @@ function Employees() {
                                             icon={CiEdit}
                                             text=""
                                             tooltipContent="Edit"
-                                            onClick={handleEdit}
+                                            onClick={() => handleEdit(employee)}
                                             variant="primary"
                                         />
                                     </td>
