@@ -579,15 +579,16 @@ async function update(req, res, next) {
             name: item.name,
             quantity: parseInt(item.quantity) || 1,
             requestId: request.id,
-            // Preserve existing ID if it exists
-            ...(item.id && !isNaN(parseInt(item.id))
-              ? { id: parseInt(item.id) }
-              : {}),
+            // Preserve existing ID if it exists and is not a temporary ID
+            ...(item.id && typeof item.id === "number" ? { id: item.id } : {}),
           }));
 
           // Items that need to be created (don't have an ID or have a temp ID)
           const newItems = itemsToCreate.filter(
-            (item) => !item.id || item.id.toString().startsWith("temp-")
+            (item) =>
+              !item.id ||
+              (typeof item.id === "string" &&
+                item.id.toString().startsWith("temp-"))
           );
           console.log(`Creating ${newItems.length} new items`);
 
@@ -609,7 +610,7 @@ async function update(req, res, next) {
           const itemsToUpdate = itemsToCreate.filter(
             (item) =>
               item.id &&
-              !item.id.toString().startsWith("temp-") &&
+              typeof item.id === "number" &&
               existingItems.some((existingItem) => existingItem.id === item.id)
           );
 
@@ -625,9 +626,7 @@ async function update(req, res, next) {
           // Delete items that were removed (exist in DB but not in the updated list)
           const existingIds = existingItems.map((item) => item.id);
           const updatedIds = itemsToCreate
-            .filter(
-              (item) => item.id && !item.id.toString().startsWith("temp-")
-            )
+            .filter((item) => item.id && typeof item.id === "number")
             .map((item) => item.id);
 
           const idsToDelete = existingIds.filter(
@@ -670,6 +669,16 @@ async function update(req, res, next) {
         },
       ],
     });
+
+    // Log the actual items in the database after update
+    const items = await db.RequestItem.findAll({
+      where: { requestId: req.params.id },
+      raw: true,
+    });
+    console.log(
+      `Items in database after update (${items.length}):`,
+      items.map((i) => `${i.name} (${i.quantity})`).join(", ")
+    );
 
     // If employee data is still missing, try to find it explicitly
     const plainRequest = updatedRequest.get({ plain: true });

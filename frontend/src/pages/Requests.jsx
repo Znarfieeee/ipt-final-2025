@@ -235,7 +235,8 @@ function Requests() {
                             hasEmployee: !!request.Employee,
                             hasEmployeeUser: request.Employee?.User ? true : false,
                             employeeId: request.employeeId,
-                            EmployeeId: request.EmployeeId
+                            EmployeeId: request.EmployeeId,
+                            itemCount: (request.requestItems?.length || 0) + (request.RequestItems?.length || 0)
                         });
                         
                         // First try using nested Employee.User data from the API (most reliable)
@@ -267,7 +268,18 @@ function Requests() {
                         console.log(`Request ${request.id} employee (${sourceMethod}): ${employeeEmail}`);
                         
                         // Fix request items to handle different casing
-                        const requestItems = request.RequestItems || request.requestItems || [];
+                        let requestItems = [];
+                        
+                        // Collect items from all possible sources
+                        if (request.requestItems && request.requestItems.length > 0) {
+                            requestItems = [...request.requestItems];
+                            console.log(`Found ${requestItems.length} items in requestItems for request ${request.id}`);
+                        } else if (request.RequestItems && request.RequestItems.length > 0) {
+                            requestItems = [...request.RequestItems];
+                            console.log(`Found ${requestItems.length} items in RequestItems for request ${request.id}`);
+                        } else {
+                            console.log(`No items found for request ${request.id}`);
+                        }
                         
                         // After all the processing, do a final check - if we still have unknown employee,
                         // try one more direct lookup from our employee map
@@ -296,7 +308,8 @@ function Requests() {
                             ...request,
                             employeeEmail,
                             employeeFound,
-                            requestItems
+                            requestItems,
+                            RequestItems: requestItems   // Ensure both formats are available
                         };
                     });
                     
@@ -491,8 +504,10 @@ function Requests() {
             
             setLoading(true);
             
-            // *** CRITICAL: The form component now returns a COMPLETE request object ***
-            // This includes all the necessary data from the backend response
+            // Get the specific request items from the response
+            const requestItems = formData.RequestItems || formData.requestItems || [];
+            console.log(`Form submission contains ${requestItems.length} items:`, 
+                requestItems.map(item => `${item.name} (${item.quantity})`).join(", "));
             
             // Create a complete request object to add to the state - this handles both edit and new cases
             const processedRequest = {
@@ -502,11 +517,33 @@ function Requests() {
                 employeeId: formData.employeeId || formData.EmployeeId,
                 EmployeeId: formData.EmployeeId || formData.employeeId,
                 // CRITICAL: Make sure we have the items in BOTH formats for consistency
-                requestItems: formData.requestItems || formData.RequestItems || [],
-                RequestItems: formData.RequestItems || formData.requestItems || [],
+                requestItems: requestItems,
+                RequestItems: requestItems,
                 Employee: formData.Employee || null,
                 employeeEmail: formData.employeeEmail || "Unknown Employee"
             };
+            
+            // CRITICAL: Ensure all temporary IDs are removed from the request items
+            // before updating the UI state to match what's in the database
+            if (processedRequest.requestItems && processedRequest.requestItems.length > 0) {
+                // Clean up item IDs to match database format
+                processedRequest.requestItems = processedRequest.requestItems.map(item => {
+                    // If it has a temporary ID, remove it since the backend will assign a real ID
+                    if (item.id && typeof item.id === 'string' && item.id.startsWith('temp-')) {
+                        const { id, ...rest } = item; // Remove the id property
+                        return rest;
+                    }
+                    return item;
+                });
+                
+                // Also update the RequestItems format for consistency
+                processedRequest.RequestItems = [...processedRequest.requestItems];
+                
+                console.log(`Processed ${processedRequest.requestItems.length} items for UI display:`, 
+                    processedRequest.requestItems.map(item => `${item.name} (${item.quantity})`).join(", "));
+            } else {
+                console.warn("No items found in the form submission data");
+            }
             
             // Add some additional user-friendly formatting if we have the data
             if (processedRequest.Employee && processedRequest.Employee.User) {
@@ -515,7 +552,7 @@ function Requests() {
                 processedRequest.employeeEmail = `${user.email} (${userType})`;
             }
             
-            console.log("Processed request before updating UI:", processedRequest);
+            console.log("Final processed request before updating UI:", processedRequest);
             
             // Immediately update the UI with the processed data
             if (editingRequest?.id) {
@@ -790,14 +827,28 @@ function Requests() {
                                     </td>
                                     <td className="px-6 py-4 text-start text-foreground">
                                         <div className="flex flex-col space-y-1">
-                                            {request.requestItems?.map((item, index) => (
-                                                <div key={index} className="flex items-center gap-2">
-                                                    <span className="font-medium">{item.name}</span>
-                                                    <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                                                        Qty: {item.quantity}
-                                                    </span>
-                                                </div>
-                                            ))}
+                                            {(request.requestItems && request.requestItems.length > 0) ? (
+                                                request.requestItems.map((item, index) => (
+                                                    <div key={index} className="flex items-center gap-2">
+                                                        <span className="font-medium">{item.name || "Unknown Item"}</span>
+                                                        <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                                                            Qty: {item.quantity || 1}
+                                                        </span>
+                                                    </div>
+                                                ))
+                                            ) : (request.RequestItems && request.RequestItems.length > 0) ? (
+                                                // Fallback to RequestItems if requestItems is empty
+                                                request.RequestItems.map((item, index) => (
+                                                    <div key={index} className="flex items-center gap-2">
+                                                        <span className="font-medium">{item.name || "Unknown Item"}</span>
+                                                        <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                                                            Qty: {item.quantity || 1}
+                                                        </span>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="text-gray-500 italic">No items</div>
+                                            )}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-start text-foreground">

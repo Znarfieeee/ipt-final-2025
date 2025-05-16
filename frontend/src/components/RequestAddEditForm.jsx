@@ -185,6 +185,8 @@ function RequestAddEditForm({ onSubmit, onCancel, initialData }) {
             let requestItems = validItems.map(item => ({
                 name: item.name,
                 quantity: parseInt(item.quantity),
+                // Preserve the existing item ID if it has one and it's not a temporary ID
+                ...(item.id && !item.id.toString().startsWith('temp-') ? { id: parseInt(item.id) } : {})
             }));
             
             // For debugging purposes, log the items we found in the form
@@ -194,16 +196,6 @@ function RequestAddEditForm({ onSubmit, onCancel, initialData }) {
             
             // When editing, ensure we include any existing request items that might not be in the form
             if (initialData && initialData.id) {
-                if (!requestItems || requestItems.length === 0) {
-                    console.log("No items in form, using original items from request");
-                    // Get items from all possible sources
-                    const originalItems = initialData.requestItems || initialData.RequestItems || [];
-                    
-                    // Make a deep copy to avoid reference issues
-                    requestItems = JSON.parse(JSON.stringify(originalItems));
-                    console.log(`Using ${requestItems.length} items from original request`);
-                }
-                
                 // Add request ID to each item to ensure proper association
                 requestItems = requestItems.map(item => ({
                     ...item,
@@ -264,8 +256,15 @@ function RequestAddEditForm({ onSubmit, onCancel, initialData }) {
                         id: response.id,
                         // Use backend response fields if available
                         Employee: response.Employee || requestData.Employee,
-                        requestItems: response.RequestItems || response.requestItems || requestData.requestItems
+                        // CRITICAL: This ensures we have the correct items with real database IDs
+                        requestItems: response.RequestItems || response.requestItems || requestData.requestItems,
+                        RequestItems: response.RequestItems || response.requestItems || requestData.requestItems
                     };
+                    
+                    // Log the items in the created request to assist with debugging
+                    console.log("Items in final request:", 
+                        (createdRequest.requestItems || []).map(item => `${item.name} (${item.quantity})`).join(", ")
+                    );
                     
                     // Format employee email with role info if available
                     if (response.Employee && response.Employee.User) {
@@ -327,6 +326,23 @@ function RequestAddEditForm({ onSubmit, onCancel, initialData }) {
 
             // Pass the complete request data back to the parent component
             console.log("Returning complete request to parent:", createdRequest);
+
+            // Add a debug check to verify items are properly returned
+            if (createdRequest.requestItems && createdRequest.requestItems.length > 0) {
+                console.log(`Successfully returning ${createdRequest.requestItems.length} items to parent:`, 
+                    createdRequest.requestItems.map(item => `${item.name} (${item.quantity})`).join(', '));
+            } else {
+                console.warn("WARNING: No items in the request being returned to parent!");
+                
+                // If there are no items in createdRequest but there were items in the form,
+                // manually add them to ensure they're returned to the parent
+                if (requestItems && requestItems.length > 0) {
+                    console.log("Re-adding items from form data to ensure they're returned");
+                    createdRequest.requestItems = [...requestItems];
+                    createdRequest.RequestItems = [...requestItems];
+                }
+            }
+
             onSubmit?.(createdRequest);
             showToast("success", initialData ? "Request updated successfully!" : "Request added successfully!");
         } catch (error) {

@@ -280,14 +280,37 @@ class BackendConnection {
 
                 if (Array.isArray(items) && items.length > 0) {
                     // Use a standardized format to ensure proper handling by backend
-                    finalData.requestItems = items.map(item => ({
-                        name: item.name,
-                        quantity: parseInt(item.quantity || 1),
-                        requestId: id, // Ensure each item has the request ID
-                        // Preserve existing item ID if available
-                        id: item.id || undefined,
-                    }))
-                    console.log(`Prepared ${finalData.requestItems.length} items for update`)
+                    finalData.requestItems = items.map(item => {
+                        // Start with the basic item data
+                        const processedItem = {
+                            name: item.name,
+                            quantity: parseInt(item.quantity || 1),
+                            requestId: id, // Ensure each item has the request ID
+                        }
+
+                        // Only add real IDs (not temporary ones) to the item
+                        if (item.id && typeof item.id === "number") {
+                            processedItem.id = item.id
+                        } else if (item.id && typeof item.id === "string" && !item.id.toString().startsWith("temp-")) {
+                            // Try to convert string IDs to numbers if they're not temp IDs
+                            try {
+                                const numId = parseInt(item.id)
+                                if (!isNaN(numId)) {
+                                    processedItem.id = numId
+                                }
+                            } catch (e) {
+                                // Ignore conversion errors
+                            }
+                        }
+
+                        return processedItem
+                    })
+                    console.log(
+                        `Prepared ${finalData.requestItems.length} items for update:`,
+                        finalData.requestItems
+                            .map(i => `${i.name} (${i.quantity})${i.id ? ` ID: ${i.id}` : ""}`)
+                            .join(", ")
+                    )
                 } else {
                     console.warn(`Request update for ID ${id} has no items!`)
                     // Ensure we at least have an empty array to avoid null reference issues
@@ -304,13 +327,57 @@ class BackendConnection {
             })
             console.log("Update request response:", response)
 
+            // Extra verification step: If the response doesn't contain items, fetch them directly
+            if (
+                response &&
+                (!response.requestItems ||
+                    !response.RequestItems ||
+                    (response.requestItems &&
+                        response.requestItems.length === 0 &&
+                        response.RequestItems &&
+                        response.RequestItems.length === 0))
+            ) {
+                console.log("No items found in response, fetching directly from server...")
+
+                try {
+                    // Make a separate call to get just the request items
+                    const itemsResponse = await this.fetchData(`/requests/${id}`)
+                    if (itemsResponse && (itemsResponse.requestItems || itemsResponse.RequestItems)) {
+                        // Update the response with the fetched items
+                        response.requestItems = itemsResponse.requestItems || []
+                        response.RequestItems = itemsResponse.RequestItems || []
+                        console.log(
+                            "Successfully fetched items in separate call:",
+                            response.requestItems.map(i => `${i.name} (${i.quantity})`).join(", ")
+                        )
+                    }
+                } catch (itemErr) {
+                    console.error("Error fetching request items:", itemErr)
+                }
+            }
+
             // Ensure the response has both versions of the request items
             if (response) {
+                // First, make sure we have at least one version of the items
                 if (response.requestItems && !response.RequestItems) {
-                    response.RequestItems = response.requestItems
+                    response.RequestItems = [...response.requestItems]
                 } else if (response.RequestItems && !response.requestItems) {
-                    response.requestItems = response.RequestItems
+                    response.requestItems = [...response.RequestItems]
                 }
+
+                // If we still don't have any items, create empty arrays
+                if (!response.requestItems) {
+                    response.requestItems = []
+                }
+                if (!response.RequestItems) {
+                    response.RequestItems = []
+                }
+
+                // Log the items for debugging
+                console.log(
+                    `Response contains ${response.requestItems.length} items:`,
+                    response.requestItems.map(item => `${item.name} (${item.quantity})`).join(", ")
+                )
             }
 
             return response
