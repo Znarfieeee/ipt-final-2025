@@ -10,7 +10,7 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
     const [departments, setDepartments] = useState([])
     const [users, setUsers] = useState([])
     const [formData, setFormData] = useState({
-        employeeId: initialData?.employeeId || generateEmployeeId(),
+        employeeId: initialData?.employeeId || "", // Will be set in useEffect
         userEmail: "", // This will be set in useEffect when we have the users data
         userId: initialData?.userId || "",
         position: initialData?.position || "",
@@ -23,8 +23,9 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
 
     // Generate a unique employee ID in the format EMP###
     function generateEmployeeId() {
-        const randomNum = Math.floor(Math.random() * 1000)
-        return `EMP${randomNum.toString().padStart(3, "0")}`
+        // Simple format that will match the database constraint better
+        const randomNum = Math.floor(1000 + Math.random() * 9000); // 4-digit number
+        return `EMP${randomNum}`;
     }
 
     useEffect(() => {
@@ -99,6 +100,21 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
         fetchData()
     }, [fakeFetch, initialData, isUsingFakeBackend])
 
+    useEffect(() => {
+        // If initialData has an employeeId, use it; otherwise generate a new one
+        if (initialData && initialData.employeeId) {
+            setFormData(prev => ({
+                ...prev,
+                employeeId: initialData.employeeId
+            }));
+        } else {
+            setFormData(prev => ({
+                ...prev,
+                employeeId: generateEmployeeId()
+            }));
+        }
+    }, [initialData]);
+
     const handleChange = e => {
         const { name, value } = e.target
         if (name === "userEmail") {
@@ -143,14 +159,23 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
         // Validate required fields first
         if (!formData.employeeId) {
             showToast("error", "Employee ID is required")
+            
+            // Generate a new ID if one doesn't exist
+            const newId = generateEmployeeId();
+            setFormData(prev => ({...prev, employeeId: newId}));
             return
         }
+        
         if (!formData.userId) {
             showToast("error", "You must select an account")
             return
         }
         if (!formData.position) {
             showToast("error", "Position is required")
+            return
+        }
+        if (!formData.DepartmentId) {
+            showToast("error", "Department is required")
             return
         }
 
@@ -172,30 +197,74 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
 
             console.log("Submitting employee data:", submitData)
 
+            // Find department name for display
+            const selectedDept = departments.find(d => d.id === parseInt(formData.DepartmentId, 10) || d.id === formData.DepartmentId);
+            const departmentName = selectedDept ? selectedDept.name : "Unknown";
+
+            // Find user email for display
+            const selectedUser = users.find(u => u.id === parseInt(formData.userId, 10) || u.id === formData.userId);
+            const userEmail = selectedUser ? selectedUser.email : formData.userEmail || "Unknown";
+
+            // Add user and department info for immediate display
+            const enrichedData = {
+                ...submitData,
+                userEmail: userEmail,
+                departmentName: departmentName,
+                // Include hireDate formatted for display
+                hireDateFormatted: formData.hireDate instanceof Date 
+                    ? formData.hireDate.toLocaleDateString("en-CA") 
+                    : new Date().toLocaleDateString("en-CA")
+            };
+
+            // If editing, make sure to include the ID
+            if (initialData?.id) {
+                enrichedData.id = initialData.id;
+            }
+
             if (!isUsingFakeBackend) {
                 try {
                     // Use real backend
+                    let responseData = null;
                     if (initialData?.id) {
                         // Pass id separately from the data
-                        await backendConnection.updateEmployee(initialData.id, submitData)
+                        responseData = await backendConnection.updateEmployee(initialData.id, submitData);
+                        enrichedData.id = initialData.id; // Ensure ID is passed back
                     } else {
-                        const response = await backendConnection.createEmployee(submitData)
-                        console.log("Employee creation response:", response)
+                        responseData = await backendConnection.createEmployee(submitData);
+                        console.log("Employee creation response:", responseData);
+                        // If server returned an ID, use it
+                        if (responseData && responseData.id) {
+                            enrichedData.id = responseData.id;
+                        } else {
+                            // Generate a temporary ID if server didn't return one
+                            enrichedData.id = Date.now();
+                        }
                     }
+                    
+                    // Call onSubmit with the enriched data for immediate display
+                    console.log("Sending enriched data to parent:", enrichedData);
+                    onSubmit?.(enrichedData);
+                    
+                    // Show success message AFTER submitting data
+                    showToast("success", initialData?.id ? "Employee updated successfully!" : "Employee added successfully!");
                 } catch (error) {
                     console.error("Backend submission error details:", error)
 
                     // Handle specific error cases
                     if (error.message) {
-                        if (error.message.includes("This Employee ID is already in use")) {
-                            showToast("error", "This Employee ID is already in use. Please choose a different ID.")
-                            setIsSubmitting(false) // Reset submitting state
-                            return
-                        } else if (error.message.includes("Validation error")) {
-                            showToast("error", "Validation error: Please check all fields and try again")
-                            setIsSubmitting(false) // Reset submitting state
-                            return
-                        }
+                        if (error.message.includes("Employee ID is already in use") || 
+                            error.message.includes("employeeId") || 
+                            error.message.includes("Validation")) {
+                            
+                            showToast("error", "This Employee ID is already in use. Generating a new one...");
+                            
+                            // Generate a new ID with different format
+                            const newId = `EMP${Math.floor(1000 + Math.random() * 9000)}`;
+                            setFormData(prev => ({...prev, employeeId: newId}));
+                            
+                            setIsSubmitting(false); // Reset submitting state
+                            return;
+                        } 
                     }
 
                     // Fall back to local mode if backend fails
@@ -203,21 +272,34 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
                     setIsUsingFakeBackend(true)
                     setBackendMode(true) // Update global setting
 
+                    // Add fake ID for local mode
+                    enrichedData.id = Date.now();
+                    
                     // Continue with form submission in fake mode
-                    onSubmit?.(submitData)
+                    console.log("Sending enriched data to parent (local mode):", enrichedData);
+                    onSubmit?.(enrichedData);
+                    
                     showToast(
                         "success",
-                        initialData
+                        initialData?.id
                             ? "Employee updated successfully! (Local mode)"
                             : "Employee added successfully! (Local mode)"
-                    )
-                    setIsSubmitting(false) // Reset submitting state
-                    return
+                    );
                 }
+            } else {
+                // For fake backend mode, generate an ID ourselves
+                if (!initialData?.id) {
+                    enrichedData.id = Date.now();
+                } else {
+                    enrichedData.id = initialData.id;
+                }
+                
+                // Pass the enriched data directly to caller
+                console.log("Sending enriched data to parent (fake backend):", enrichedData);
+                onSubmit?.(enrichedData);
+                
+                showToast("success", initialData?.id ? "Employee updated successfully!" : "Employee added successfully!");
             }
-
-            onSubmit?.(submitData)
-            showToast("success", initialData ? "Employee updated successfully!" : "Employee added successfully!")
         } catch (err) {
             console.error("Error submitting employee:", err)
             const errorMessage = err.message || "Failed to save employee"

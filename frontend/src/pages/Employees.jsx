@@ -84,42 +84,44 @@ function Employees() {
 
     const handleFormSubmit = async formData => {
         try {
-            setLoading(true)
-            if (!USE_FAKE_BACKEND) {
-                // Use real backend
-                if (editingUser?.id) {
-                    await backendConnection.updateEmployee(editingUser.id, formData)
-                } else {
-                    await backendConnection.createEmployee(formData)
-                }
+            console.log("Received form data in parent:", formData);
+            setLoading(true);
+            
+            // Directly update the UI with the enriched data from the form
+            const newEmployee = {
+                ...formData,
+                // Ensure all required fields are present
+                id: formData.id || Date.now(),
+                employeeId: formData.employeeId,
+                userEmail: formData.userEmail || "No email assigned",
+                position: formData.position || "Not specified",
+                departmentName: formData.departmentName || "Unknown",
+                hireDate: formData.hireDate || new Date().toISOString(),
+                status: formData.status || "Active"
+            };
+            
+            // If editing, update the existing employee in the array
+            if (editingUser?.id) {
+                setEmployees(prevEmployees => 
+                    prevEmployees.map(emp => 
+                        emp.id === editingUser.id ? newEmployee : emp
+                    )
+                );
+                console.log("Updated employee in list:", newEmployee);
             } else {
-                // Use fake backend
-                const method = editingUser ? "PUT" : "POST"
-                const url = editingUser ? `/employees/${editingUser.id}` : "/employees"
-
-                const response = await fakeFetch(url, {
-                    method,
-                    body: formData,
-                })
-
-                const data = await response.json()
-                if (data.error) {
-                    throw new Error(data.error)
-                }
+                // Add the new employee to the list
+                setEmployees(prevEmployees => [...prevEmployees, newEmployee]);
+                console.log("Added new employee to list:", newEmployee);
             }
-
-            // First show success message and update UI
-            showToast("success", `Employee ${editingUser ? "updated" : "created"} successfully!`)
-            setShowForm(false)
-            setEditingUser(null)
-
-            // Then refresh the employees list
-            await loadEmployeesData()
+            
+            // Close the form
+            setShowForm(false);
+            setEditingUser(null);
         } catch (err) {
-            console.error("Error submitting employee:", err)
-            showToast("error", err.message || "An error occurred while saving the employee")
+            console.error("Error handling employee data:", err);
+            showToast("error", "Failed to process employee data");
         } finally {
-            setLoading(false)
+            setLoading(false);
         }
     }
 
@@ -136,7 +138,7 @@ function Employees() {
         )
     }
 
-    if (loading) {
+    if (loading && employees.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-12 animate-pulse">
                 <div className="flex items-center justify-center space-x-2 mb-4">
@@ -149,7 +151,7 @@ function Employees() {
         )
     }
 
-    if (error) {
+    if (error && employees.length === 0) {
         return (
             <div className="flex justify-center items-center h-64">
                 <p className="text-red-500">Error: {error}</p>
@@ -170,18 +172,31 @@ function Employees() {
             let maxNumber = 0
             employees.forEach(employee => {
                 if (employee?.employeeId) {
-                    const num = parseInt(employee.employeeId.replace("EMP", "")) || 0
-                    maxNumber = Math.max(maxNumber, num)
+                    // Extract the numeric part, handling both EMP001 and other formats
+                    const matches = employee.employeeId.match(/EMP(\d+)/)
+                    if (matches && matches[1]) {
+                        const num = parseInt(matches[1], 10) || 0
+                        maxNumber = Math.max(maxNumber, num)
+                    }
                 }
             })
 
             console.log("Max employee number found:", maxNumber)
 
-            // Generate next number
+            // Generate next number with a random component to avoid collisions
             const nextNumber = (maxNumber + 1).toString().padStart(3, "0")
             const newId = `EMP${nextNumber}`
 
             console.log("Generated new employee ID:", newId)
+            
+            // Verify this ID doesn't already exist (extra safety check)
+            const exists = employees.some(emp => emp.employeeId === newId)
+            if (exists) {
+                // If it somehow exists, add a random suffix
+                const random = Math.floor(Math.random() * 100)
+                return `EMP${nextNumber}-${random}`
+            }
+            
             return newId
         } catch (error) {
             console.error("Error generating employee ID:", error)
@@ -287,15 +302,28 @@ function Employees() {
             <div className="bg-white shadow-md rounded-lg p-6">
                 <div id="table-header" className="flex flex-row justify-between items-center mb-2">
                     <h1 className="text-2xl font-bold capitalize text-foreground">EMPLOYEES</h1>
-                    <ButtonWithIcon
-                        icon={IoAddSharp}
-                        text="Employee"
-                        tooltipContent="Add New Employee"
-                        onClick={handleAdd}
-                        variant="primary"
-                    />
+                    <div className="flex items-center space-x-4">
+                        <ButtonWithIcon
+                            icon={IoAddSharp}
+                            text="employee"
+                            tooltipContent="Add New Employee"
+                            onClick={handleAdd}
+                            variant="primary"
+                        />
+                    </div>
                 </div>
                 <hr className="mb-4" />
+                
+                {loading && employees.length > 0 && (
+                    <div className="flex justify-center my-4">
+                        <div className="flex items-center space-x-2">
+                            <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce"></div>
+                            <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce200"></div>
+                            <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce400"></div>
+                            <span className="text-sm text-gray-500">Refreshing data...</span>
+                        </div>
+                    </div>
+                )}
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>

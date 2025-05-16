@@ -21,44 +21,45 @@ function Department() {
     const [editingUser, setEditingUser] = useState(null)
     const { fakeFetch } = useFakeBackend()
 
-    useEffect(() => {
-        const fetchDepartments = async () => {
-            try {
-                setLoading(true)
-                console.log("Fetching departments...")
+    const fetchDepartments = async () => {
+        try {
+            setLoading(true)
+            console.log("Fetching departments...")
 
-                let data
-                if (!USE_FAKE_BACKEND) {
-                    // Use real backend
-                    data = await backendConnection.getDepartments()
-                } else {
-                    // Use fake backend
-                    const response = await fakeFetch("/departments", {
-                        method: "GET",
-                        body: "",
-                    })
+            let data
+            if (!USE_FAKE_BACKEND) {
+                // Use real backend
+                data = await backendConnection.getDepartments()
+            } else {
+                // Use fake backend
+                const response = await fakeFetch("/departments", {
+                    method: "GET",
+                    body: "",
+                })
 
-                    if (!response.ok) {
-                        throw new Error("Failed to fetch departments")
-                    }
-
-                    data = await response.json()
-                    if (data.error) {
-                        throw new Error(data.error)
-                    }
+                if (!response.ok) {
+                    throw new Error("Failed to fetch departments")
                 }
 
-                console.log("Departments fetched successfully:", data)
-                setDepts(Array.isArray(data) ? data : [])
-                setError(null)
-            } catch (err) {
-                console.error("Error fetching departments: ", err)
-                setError("Failed to load departments. Please try again later.")
-                showToast("error", "Failed to load departments. Please try again later.")
-            } finally {
-                setLoading(false)
+                data = await response.json()
+                if (data.error) {
+                    throw new Error(data.error)
+                }
             }
+
+            console.log("Departments fetched successfully:", data)
+            setDepts(Array.isArray(data) ? data : [])
+            setError(null)
+        } catch (err) {
+            console.error("Error fetching departments: ", err)
+            setError("Failed to load departments. Please try again later.")
+            showToast("error", "Failed to load departments. Please try again later.")
+        } finally {
+            setLoading(false)
         }
+    }
+
+    useEffect(() => {
         fetchDepartments()
     }, [fakeFetch])
 
@@ -74,18 +75,34 @@ function Department() {
 
     const handleFormSubmit = async formData => {
         try {
+            let result;
+            
             if (!USE_FAKE_BACKEND) {
                 // Use real backend
                 if (editingUser?.id) {
                     // Pass id separately from the data
-                    await backendConnection.updateDepartment(editingUser.id, formData)
+                    result = await backendConnection.updateDepartment(editingUser.id, formData)
                 } else {
-                    await backendConnection.createDepartment(formData)
+                    result = await backendConnection.createDepartment(formData)
                 }
 
-                // Refresh the departments list
-                const refreshedDepts = await backendConnection.getDepartments()
-                setDepts(refreshedDepts)
+                console.log("API response:", result);
+                
+                // Immediately update the local state without waiting for a refetch
+                if (editingUser?.id) {
+                    // Update existing department in the state
+                    setDepts(prevDepts => 
+                        prevDepts.map(dept => 
+                            dept.id === editingUser.id ? {...dept, ...formData} : dept
+                        )
+                    );
+                } else if (result && result.id) {
+                    // Add new department to the state
+                    setDepts(prevDepts => [...prevDepts, result]);
+                }
+                
+                // Refresh the departments list to ensure data consistency
+                await fetchDepartments();
             } else {
                 // Use fake backend
                 const method = editingUser ? "PUT" : "POST"
@@ -96,15 +113,32 @@ function Department() {
                     body: formData,
                 })
 
+                if (!response.ok) {
+                    throw new Error("Failed to save department");
+                }
+
                 const data = await response.json()
                 if (data.error) {
                     throw new Error(data.error)
                 }
 
+                // Update local state immediately
+                if (editingUser) {
+                    setDepts(prevDepts => 
+                        prevDepts.map(dept => 
+                            dept.id === editingUser.id ? {...dept, ...formData} : dept
+                        )
+                    );
+                } else if (data && data.id) {
+                    setDepts(prevDepts => [...prevDepts, data]);
+                }
+
                 // Refresh the departments list
                 const updatedResponse = await fakeFetch("/departments")
                 const updatedData = await updatedResponse.json()
-                setDepts(updatedData)
+                if (Array.isArray(updatedData)) {
+                    setDepts(updatedData)
+                }
             }
 
             // Show success message
@@ -113,11 +147,13 @@ function Department() {
             setEditingUser(null)
         } catch (err) {
             console.error("Error saving department:", err)
-            showToast("error", err.message || "An error occurred while saving the department")
+            // More specific error message
+            const errorMessage = err.message || "An error occurred while saving the department"
+            showToast("error", errorMessage)
         }
     }
 
-    if (loading) {
+    if (loading && depts.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-12 animate-pulse">
                 <div className="flex items-center justify-center space-x-2 mb-4">
@@ -130,7 +166,7 @@ function Department() {
         )
     }
 
-    if (error) {
+    if (error && depts.length === 0) {
         return (
             <div className="flex justify-center items-center h-64">
                 <p className="text-red-500">Error: {error}</p>
@@ -152,6 +188,13 @@ function Department() {
                     />
                 </div>
                 <hr />
+                {loading && (
+                    <div className="flex justify-center my-4">
+                        <div className="w-4 h-4 bg-blue-500 rounded-full animate-bounce mr-1"></div>
+                        <div className="w-4 h-4 bg-blue-500 rounded-full animate-bounce200 mr-1"></div>
+                        <div className="w-4 h-4 bg-blue-500 rounded-full animate-bounce400"></div>
+                    </div>
+                )}
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
@@ -180,7 +223,7 @@ function Department() {
                                         {dept.description}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-start text-foreground">
-                                        {dept.employeeCount}
+                                        {dept.employeeCount || 0}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-start">
                                         <ButtonWithIcon
@@ -195,8 +238,8 @@ function Department() {
                             ))
                         ) : (
                             <tr>
-                                <td colSpan="7" className="px-6 py-4 text-center text-destructive">
-                                    No departments found
+                                <td colSpan="4" className="px-6 py-4 text-center text-destructive">
+                                    {loading ? "Loading departments..." : "No departments found"}
                                 </td>
                             </tr>
                         )}
