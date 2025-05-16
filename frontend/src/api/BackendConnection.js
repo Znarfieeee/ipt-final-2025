@@ -101,10 +101,22 @@ class BackendConnection {
     }
 
     async createEmployee(employeeData) {
-        return this.fetchData("/employees", {
-            method: "POST",
-            body: employeeData,
-        })
+        try {
+            console.log("Sending employee data to backend:", employeeData)
+            const response = await this.fetchData("/employees", {
+                method: "POST",
+                body: employeeData,
+            })
+            return response
+        } catch (error) {
+            console.error("Detailed error creating employee:", error)
+            // Extract validation errors if they exist
+            if (error.response && error.response.errors) {
+                const validationErrors = error.response.errors.map(err => `${err.field}: ${err.message}`).join(", ")
+                throw new Error(`Validation failed: ${validationErrors}`)
+            }
+            throw error
+        }
     }
 
     async updateEmployee(id, employeeData) {
@@ -218,29 +230,33 @@ class BackendConnection {
                 return null
             }
 
-            // Check if response is OK before attempting to parse JSON
-            if (!response.ok) {
-                let errorMessage = response.statusText
-                try {
-                    const errorData = await response.json()
-                    errorMessage = errorData.message || errorData.error || response.statusText
-                } catch (e) {
-                    // If we can't parse the error as JSON, use the status text
-                    console.warn("Could not parse error response as JSON:", e)
-                }
-                console.error(`HTTP error ${response.status}: ${errorMessage}`)
-                throw new Error(`HTTP error ${response.status}: ${errorMessage}`)
-            }
-
-            // Check Content-Type header to handle possible HTML responses
+            // Get the response content regardless of status
+            let responseData = null
             const contentType = response.headers.get("Content-Type")
             if (contentType && contentType.includes("application/json")) {
-                const data = await response.json()
-                return data
-            } else {
-                console.warn(`Unexpected content type: ${contentType}`)
-                return null
+                try {
+                    responseData = await response.json()
+                } catch (e) {
+                    console.warn("Could not parse response as JSON:", e)
+                }
             }
+
+            // Check if response is OK
+            if (!response.ok) {
+                // Use any error message from the response
+                let errorMessage = response.statusText
+                if (responseData && (responseData.message || responseData.error)) {
+                    errorMessage = responseData.message || responseData.error || response.statusText
+                }
+
+                const error = new Error(`HTTP error ${response.status}: ${errorMessage}`)
+                error.status = response.status
+                error.response = responseData // Attach the full response data
+                console.error(`HTTP error ${response.status}:`, responseData || errorMessage)
+                throw error
+            }
+
+            return responseData
         } catch (error) {
             console.error("Error fetching data:", error)
             throw error

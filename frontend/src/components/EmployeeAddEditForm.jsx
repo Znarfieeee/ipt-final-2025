@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react"
 import { DatePicker } from "./ui/date-picker"
 import backendConnection from "../api/BackendConnection"
-import { USE_FAKE_BACKEND } from "../api/config"
+import { USE_FAKE_BACKEND, setBackendMode } from "../api/config"
 import { useFakeBackend } from "../api/fakeBackend"
 import { showToast } from "../util/alertHelper"
 
@@ -10,7 +10,7 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
     const [departments, setDepartments] = useState([])
     const [users, setUsers] = useState([])
     const [formData, setFormData] = useState({
-        employeeId: initialData?.employeeId || "",
+        employeeId: initialData?.employeeId || generateEmployeeId(),
         userEmail: "", // This will be set in useEffect when we have the users data
         userId: initialData?.userId || "",
         position: initialData?.position || "",
@@ -18,6 +18,14 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
         hireDate: initialData?.hireDate ? new Date(initialData.hireDate) : new Date(),
         status: initialData?.status || "Active",
     })
+    const [isUsingFakeBackend, setIsUsingFakeBackend] = useState(USE_FAKE_BACKEND)
+    const [isSubmitting, setIsSubmitting] = useState(false)
+
+    // Generate a unique employee ID in the format EMP###
+    function generateEmployeeId() {
+        const randomNum = Math.floor(Math.random() * 1000)
+        return `EMP${randomNum.toString().padStart(3, "0")}`
+    }
 
     useEffect(() => {
         const fetchData = async () => {
@@ -25,14 +33,32 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
                 let departmentsData = []
                 let usersData = []
 
-                if (!USE_FAKE_BACKEND) {
+                if (!isUsingFakeBackend) {
                     // Use real backend
-                    const [deptsResponse, usersResponse] = await Promise.all([
-                        backendConnection.getDepartments(),
-                        backendConnection.getUsers(),
-                    ])
-                    departmentsData = Array.isArray(deptsResponse) ? deptsResponse : []
-                    usersData = Array.isArray(usersResponse) ? usersResponse : []
+                    try {
+                        const [deptsResponse, usersResponse] = await Promise.all([
+                            backendConnection.getDepartments(),
+                            backendConnection.getUsers(),
+                        ])
+                        departmentsData = Array.isArray(deptsResponse) ? deptsResponse : []
+                        usersData = Array.isArray(usersResponse) ? usersResponse : []
+                    } catch (error) {
+                        console.error("Backend error, switching to fake backend:", error)
+                        showToast("warning", "Backend connection failed, using local data instead")
+                        // Switch to fake backend
+                        setIsUsingFakeBackend(true)
+                        setBackendMode(true) // Update global setting
+
+                        // Use fake backend data
+                        const [deptsResponse, usersResponse] = await Promise.all([
+                            fakeFetch("/departments"),
+                            fakeFetch("/accounts"),
+                        ])
+
+                        const [depts, users] = await Promise.all([deptsResponse.json(), usersResponse.json()])
+                        departmentsData = Array.isArray(depts) ? depts : []
+                        usersData = Array.isArray(users) ? users : []
+                    }
                 } else {
                     // Use fake backend
                     const [deptsResponse, usersResponse] = await Promise.all([
@@ -71,7 +97,7 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
             }
         }
         fetchData()
-    }, [fakeFetch, initialData])
+    }, [fakeFetch, initialData, isUsingFakeBackend])
 
     const handleChange = e => {
         const { name, value } = e.target
@@ -99,23 +125,94 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
 
     const handleSubmit = async e => {
         e.preventDefault()
+
+        // Prevent double submissions
+        if (isSubmitting) {
+            console.log("Form submission already in progress, preventing double submission")
+            return
+        }
+
+        // Check userId is set properly from selected user email
+        if (!formData.userId && formData.userEmail) {
+            const selectedUser = users.find(user => user.email === formData.userEmail)
+            if (selectedUser) {
+                formData.userId = selectedUser.id // Directly set the userId for use in this submission
+            }
+        }
+
+        // Validate required fields first
+        if (!formData.employeeId) {
+            showToast("error", "Employee ID is required")
+            return
+        }
+        if (!formData.userId) {
+            showToast("error", "You must select an account")
+            return
+        }
+        if (!formData.position) {
+            showToast("error", "Position is required")
+            return
+        }
+
         try {
+            setIsSubmitting(true) // Set submitting flag to true
+
+            // Ensure correct data types
             const submitData = {
-                ...formData,
-                DepartmentId: formData.DepartmentId ? Number(formData.DepartmentId) : "",
+                employeeId: formData.employeeId,
+                userId: parseInt(formData.userId, 10),
+                position: formData.position,
+                DepartmentId: formData.DepartmentId ? parseInt(formData.DepartmentId, 10) : null, // Convert to number or null
                 hireDate:
                     formData.hireDate instanceof Date
-                        ? formData.hireDate.toLocaleDateString("en-CA")
-                        : new Date().toLocaleDateString("en-CA"),
+                        ? formData.hireDate.toISOString() // Use full ISO string for datetime format
+                        : new Date().toISOString(),
+                status: formData.status || "Active",
             }
 
-            if (!USE_FAKE_BACKEND) {
-                // Use real backend
-                if (initialData?.id) {
-                    // Pass id separately from the data
-                    await backendConnection.updateEmployee(initialData.id, submitData)
-                } else {
-                    await backendConnection.createEmployee(submitData)
+            console.log("Submitting employee data:", submitData)
+
+            if (!isUsingFakeBackend) {
+                try {
+                    // Use real backend
+                    if (initialData?.id) {
+                        // Pass id separately from the data
+                        await backendConnection.updateEmployee(initialData.id, submitData)
+                    } else {
+                        const response = await backendConnection.createEmployee(submitData)
+                        console.log("Employee creation response:", response)
+                    }
+                } catch (error) {
+                    console.error("Backend submission error details:", error)
+
+                    // Handle specific error cases
+                    if (error.message) {
+                        if (error.message.includes("This Employee ID is already in use")) {
+                            showToast("error", "This Employee ID is already in use. Please choose a different ID.")
+                            setIsSubmitting(false) // Reset submitting state
+                            return
+                        } else if (error.message.includes("Validation error")) {
+                            showToast("error", "Validation error: Please check all fields and try again")
+                            setIsSubmitting(false) // Reset submitting state
+                            return
+                        }
+                    }
+
+                    // Fall back to local mode if backend fails
+                    showToast("warning", "Backend connection error, using local mode instead")
+                    setIsUsingFakeBackend(true)
+                    setBackendMode(true) // Update global setting
+
+                    // Continue with form submission in fake mode
+                    onSubmit?.(submitData)
+                    showToast(
+                        "success",
+                        initialData
+                            ? "Employee updated successfully! (Local mode)"
+                            : "Employee added successfully! (Local mode)"
+                    )
+                    setIsSubmitting(false) // Reset submitting state
+                    return
                 }
             }
 
@@ -123,7 +220,10 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
             showToast("success", initialData ? "Employee updated successfully!" : "Employee added successfully!")
         } catch (err) {
             console.error("Error submitting employee:", err)
-            showToast("error", err.message || "Failed to save employee")
+            const errorMessage = err.message || "Failed to save employee"
+            showToast("error", errorMessage)
+        } finally {
+            setIsSubmitting(false) // Always reset submitting state
         }
     }
 
@@ -133,7 +233,7 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
                 <div className="bg-card p-6 rounded-lg shadow-lg max-w-[40%] w-full">
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <header className="text-2xl font-bold text-foreground mb-6">
-                            {initialData ? "Edit" : "Add"} Employee
+                            {initialData ? "Edit" : "Add"} Employee {isUsingFakeBackend ? "(Local Mode)" : ""}
                         </header>
                         <div className="space-y-4">
                             <div>
@@ -145,8 +245,9 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
                                     id="employeeId"
                                     name="employeeId"
                                     value={formData.employeeId || ""}
+                                    onChange={!initialData ? handleChange : undefined}
                                     className="w-full p-2 rounded-md border border-input bg-background text-foreground"
-                                    readOnly
+                                    readOnly={!!initialData}
                                     required
                                 />
                             </div>
@@ -238,14 +339,16 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
                                     type="button"
                                     onClick={onCancel}
                                     className="px-4 py-2 rounded-md bg-red-400 text-secondary-foreground hover:bg-red-600 hover:text-background transition-colors"
+                                    disabled={isSubmitting}
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
                                     className="px-4 py-2 rounded-md bg-green-400 text-primary hover:bg-green-600 hover:text-background transition-colors"
+                                    disabled={isSubmitting}
                                 >
-                                    {initialData ? "Update" : "Create"} Employee
+                                    {isSubmitting ? "Processing..." : initialData ? "Update" : "Create"} Employee
                                 </button>
                             </div>
                         </div>

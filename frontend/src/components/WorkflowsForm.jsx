@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react"
 import { useFakeBackend } from "../api/fakeBackend"
+import backendConnection from "../api/BackendConnection"
+import { USE_FAKE_BACKEND } from "../api/config"
 
 // UI Components
 import { BiArrowBack } from "react-icons/bi"
@@ -9,15 +11,34 @@ function WorkflowsForm({ initialData, onCancel }) {
     const { fakeFetch } = useFakeBackend()
     const [workflows, setWorkflows] = useState([])
     const [loading, setLoading] = useState(true)
+    const [error, setError] = useState(null)
 
     useEffect(() => {
         const fetchWorkflows = async () => {
             try {
-                const response = await fakeFetch(`/workflows/employee/${initialData.id}`)
-                const data = await response.json()
-                setWorkflows(data)
-            } catch (err) {
-                showToast("error", "Failed to fetch workflows")
+                setLoading(true)
+                let data
+
+                if (!USE_FAKE_BACKEND) {
+                    // Use real backend
+                    data = await backendConnection.getWorkflowsByEmployeeId(initialData.id)
+                } else {
+                    // Use fake backend
+                    const response = await fakeFetch(`/workflows/employee/${initialData.id}`)
+                    data = await response.json()
+                    if (data.error) {
+                        throw new Error(data.error)
+                    }
+                }
+
+                // Ensure data is an array
+                setWorkflows(Array.isArray(data) ? data : [])
+                setError(null)
+            } catch (error) {
+                console.error("Error fetching workflows:", error)
+                setError("Failed to load workflows")
+                showToast("error", "Failed to load workflows")
+                setWorkflows([])
             } finally {
                 setLoading(false)
             }
@@ -27,12 +48,24 @@ function WorkflowsForm({ initialData, onCancel }) {
 
     const handleStatusChange = async (workflowId, newStatus) => {
         try {
-            await fakeFetch(`/workflows/${workflowId}`, {
-                method: "PUT",
-                body: { status: newStatus },
-            })
-            setWorkflows(prev => prev.map(w => (w.id === workflowId ? { ...w, status: newStatus } : w)))
-        } catch (err) {
+            if (!USE_FAKE_BACKEND) {
+                // Use real backend
+                await backendConnection.updateWorkflow(workflowId, { status: newStatus })
+                // Refresh workflows after update
+                const updatedWorkflows = await backendConnection.getWorkflowsByEmployeeId(initialData.id)
+                setWorkflows(Array.isArray(updatedWorkflows) ? updatedWorkflows : [])
+            } else {
+                // Use fake backend
+                await fakeFetch(`/workflows/${workflowId}/status`, {
+                    method: "PUT",
+                    body: { status: newStatus },
+                })
+                // Update local state
+                setWorkflows(prev => prev.map(w => (w.id === workflowId ? { ...w, status: newStatus } : w)))
+            }
+            showToast("success", "Workflow status updated successfully")
+        } catch (error) {
+            console.error("Error updating workflow status:", error)
             showToast("error", "Failed to update workflow status")
         }
     }
@@ -55,6 +88,22 @@ function WorkflowsForm({ initialData, onCancel }) {
         return (
             <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center">
                 <div className="bg-card p-6 rounded-lg shadow-lg">Loading workflows...</div>
+            </div>
+        )
+    }
+
+    if (error) {
+        return (
+            <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center">
+                <div className="bg-card p-6 rounded-lg shadow-lg">
+                    <p className="text-red-500">Error: {error}</p>
+                    <button
+                        onClick={onCancel}
+                        className="mt-4 flex gap-2 items-center justify-center px-4 py-2 rounded-md bg-green-400 text-primary hover:bg-green-600 hover:text-background transition-colors"
+                    >
+                        <BiArrowBack /> Back to Employees
+                    </button>
+                </div>
             </div>
         )
     }
@@ -85,13 +134,7 @@ function WorkflowsForm({ initialData, onCancel }) {
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                                {workflows.length === 0 ? (
-                                    <tr>
-                                        <td colSpan="4" className="px-6 py-4 text-center text-gray-500">
-                                            No workflows found
-                                        </td>
-                                    </tr>
-                                ) : (
+                                {workflows && workflows.length > 0 ? (
                                     workflows.map(workflow => (
                                         <tr key={workflow.id} className="hover:bg-gray-50">
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -116,6 +159,12 @@ function WorkflowsForm({ initialData, onCancel }) {
                                             </td>
                                         </tr>
                                     ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan="4" className="px-6 py-4 text-center text-gray-500">
+                                            No workflows found
+                                        </td>
+                                    </tr>
                                 )}
                             </tbody>
                         </table>

@@ -145,7 +145,7 @@ export const useFakeBackend = () => {
             // Workflows Routes
             if (url.match(/\/workflows\/employee\/\d+$/) && method === "GET") {
                 const employeeId = parseInt(url.split("/").pop())
-                return workflows.filter(w => w.employeeId === employeeId)
+                return workflows.filter(w => w.EmployeeId === employeeId)
             }
 
             if (url.endsWith("/workflows") && method === "POST") {

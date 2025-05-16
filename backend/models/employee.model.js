@@ -17,8 +17,8 @@ module.exports = sequelize => {
             allowNull: false,
         },
         DepartmentId: {
-            type: DataTypes.STRING,
-            allowNull: false,
+            type: DataTypes.INTEGER,
+            allowNull: true,
         },
         hireDate: {
             type: DataTypes.DATE,

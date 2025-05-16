@@ -28,7 +28,6 @@ function Employees() {
     const [selectedEmployee, setSelectedEmployee] = useState(null)
     const { fakeFetch } = useFakeBackend()
     const navigate = useNavigate()
-    const [departments, setDepartments] = useState([])
 
     const loadEmployeesData = async () => {
         try {
@@ -56,8 +55,6 @@ function Employees() {
                 employeesData = Array.isArray(employees) ? employees : []
                 usersData = Array.isArray(users) ? users : []
             }
-
-            setDepartments(departmentsData)
 
             // Combine employee data with user and department info
             const employeesWithUserInfo = employeesData.map(employee => {
@@ -87,6 +84,7 @@ function Employees() {
 
     const handleFormSubmit = async formData => {
         try {
+            setLoading(true)
             if (!USE_FAKE_BACKEND) {
                 // Use real backend
                 if (editingUser?.id) {
@@ -94,9 +92,6 @@ function Employees() {
                 } else {
                     await backendConnection.createEmployee(formData)
                 }
-
-                // Refresh the employees list
-                await loadEmployeesData()
             } else {
                 // Use fake backend
                 const method = editingUser ? "PUT" : "POST"
@@ -111,17 +106,20 @@ function Employees() {
                 if (data.error) {
                     throw new Error(data.error)
                 }
-
-                // Refresh the employees list
-                await loadEmployeesData()
             }
 
+            // First show success message and update UI
             showToast("success", `Employee ${editingUser ? "updated" : "created"} successfully!`)
             setShowForm(false)
             setEditingUser(null)
+
+            // Then refresh the employees list
+            await loadEmployeesData()
         } catch (err) {
             console.error("Error submitting employee:", err)
             showToast("error", err.message || "An error occurred while saving the employee")
+        } finally {
+            setLoading(false)
         }
     }
 
@@ -193,7 +191,10 @@ function Employees() {
         }
     }
 
-    const handleAdd = () => {
+    const handleAdd = e => {
+        if (e && e.preventDefault) {
+            e.preventDefault() // Prevent the default button click behavior if it's an event
+        }
         const nextEmployeeId = getNextEmployeeId()
         setEditingUser({ employeeId: nextEmployeeId })
         setShowForm(true)
@@ -238,7 +239,33 @@ function Employees() {
             if (!USE_FAKE_BACKEND) {
                 await backendConnection.transferEmployee(transferringEmployee.id, formData.departmentId)
             } else {
-                // ...fake backend logic...
+                // Fetch departments to get names
+                const departmentsResponse = await fakeFetch("/departments", { method: "GET" })
+                const departments = await departmentsResponse.json()
+
+                const oldDept = departments.find(d => d.id === transferringEmployee.departmentId)
+                const newDept = departments.find(d => d.id === formData.departmentId)
+
+                // Update employee's department
+                await fakeFetch(`/employees/${transferringEmployee.id}`, {
+                    method: "PUT",
+                    body: { ...transferringEmployee, departmentId: formData.departmentId },
+                })
+
+                // Add a workflow entry for the transfer
+                await fakeFetch(`/workflows`, {
+                    method: "POST",
+                    body: {
+                        EmployeeId: transferringEmployee.id,
+                        type: "Department Transfer",
+                        details: {
+                            task: `Employee transferred from ${oldDept ? oldDept.name : "Unknown"} to ${
+                                newDept ? newDept.name : "Unknown"
+                            }.`,
+                        },
+                        status: "Pending",
+                    },
+                })
             }
             await loadEmployeesData()
             showToast("success", "Employee transferred successfully!")
