@@ -1,46 +1,67 @@
 import React, { useState, useEffect } from "react"
+import backendConnection from "../api/BackendConnection"
+import { USE_FAKE_BACKEND } from "../api/config"
+import { useFakeBackend } from "../api/fakeBackend"
+import { showToast } from "../util/alertHelper"
 
 // Components
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import ButtonWithIcon from "./ButtonWithIcon"
 import { IoRemove } from "react-icons/io5"
 import { IoAddSharp } from "react-icons/io5"
-import { useFakeBackend } from "../api/fakeBackend"
-import { showToast } from "../util/alertHelper"
 
 function RequestAddEditForm({ onSubmit, onCancel, initialData }) {
     const { fakeFetch } = useFakeBackend()
     const [employees, setEmployees] = useState([])
     const [formData, setFormData] = useState({
         type: initialData?.type || "",
-        employeeId: initialData?.employeeId || "",
+        userId: initialData?.userId || "",
         requestItems: initialData?.requestItems || [
             {
                 name: "",
                 quantity: 1,
             },
         ],
+        status: initialData?.status || "Pending",
     })
 
     useEffect(() => {
         const fetchEmployees = async () => {
             try {
-                const response = await fakeFetch("/employees");
-                const data = await response.json();
+                let employeesData = []
 
-                // Ensure the data is an array before setting it
-                if (Array.isArray(data)) {
-                    setEmployees(data);
+                if (!USE_FAKE_BACKEND) {
+                    // Use real backend
+                    const [employeesResponse, usersResponse] = await Promise.all([
+                        backendConnection.getEmployees(),
+                        backendConnection.getUsers(),
+                    ])
+                    employeesData = Array.isArray(employeesResponse) ? employeesResponse : []
+                    const usersData = Array.isArray(usersResponse) ? usersResponse : []
+
+                    // Combine employee data with user info
+                    employeesData = employeesData.map(employee => {
+                        const user = usersData.find(user => user.id === employee.userId)
+                        return {
+                            ...employee,
+                            userEmail: user ? user.email : "Unknown",
+                        }
+                    })
                 } else {
-                    showToast("error", "Invalid employee data format")
-                    setEmployees([]); // Set to an empty array if data is not valid
+                    // Use fake backend
+                    const response = await fakeFetch("/employees")
+                    const data = await response.json()
+                    employeesData = Array.isArray(data) ? data : []
                 }
+
+                setEmployees(employeesData)
             } catch (error) {
+                console.error("Error fetching employees:", error)
                 showToast("error", "Failed to fetch employees")
-                setEmployees([]); // Set to an empty array in case of an error
+                setEmployees([])
             }
-        };
-        fetchEmployees();
+        }
+        fetchEmployees()
     }, [fakeFetch])
 
     const handleChange = e => {
@@ -55,7 +76,7 @@ function RequestAddEditForm({ onSubmit, onCancel, initialData }) {
         e.preventDefault()
         try {
             // Validate form data
-            if (!formData.type || !formData.employeeId) {
+            if (!formData.type || !formData.userId) {
                 throw new Error("Please select a request type and employee")
             }
 
@@ -66,30 +87,45 @@ function RequestAddEditForm({ onSubmit, onCancel, initialData }) {
 
             // Prepare request data with valid items only
             const requestData = {
-                ...formData,
-                requestItems: validItems,
-                status: initialData?.status || "Pending",
+                type: formData.type,
+                userId: formData.userId,
+                requestItems: validItems.map(item => ({
+                    name: item.name,
+                    quantity: parseInt(item.quantity),
+                })),
+                status: formData.status,
             }
 
-            const method = initialData ? "PUT" : "POST"
-            const url = initialData ? `/requests/${initialData.id}` : "/requests"
+            if (!USE_FAKE_BACKEND) {
+                // Use real backend
+                if (initialData?.id) {
+                    await backendConnection.updateRequest(initialData.id, requestData)
+                } else {
+                    await backendConnection.createRequest(requestData)
+                }
+            } else {
+                // Use fake backend
+                const method = initialData ? "PUT" : "POST"
+                const url = initialData ? `/requests/${initialData.id}` : "/requests"
 
-            const response = await fakeFetch(url, {
-                method,
-                body: requestData,
-            })
+                const response = await fakeFetch(url, {
+                    method,
+                    body: JSON.stringify(requestData),
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                })
 
-            const data = await response.json()
-            if (data.error) {
-                throw new Error(data.error)
+                const data = await response.json()
+                if (data.error) {
+                    throw new Error(data.error)
+                }
             }
 
-            // Show success feedback and call onSubmit
-            alert("Request " + (initialData ? "updated" : "created") + " successfully!")
-            onSubmit?.(data)
+            onSubmit?.(requestData)
         } catch (error) {
+            console.error("Error submitting request:", error)
             showToast("error", error.message || "An error occurred while submitting the request")
-            alert(error.message || "An error occurred while submitting the request")
         }
     }
 
@@ -122,12 +158,12 @@ function RequestAddEditForm({ onSubmit, onCancel, initialData }) {
                                 </Select>
                             </div>
                             <div>
-                                <label htmlFor="employeeId" className="block text-sm font-medium text-foreground mb-1">
-                                    Employee ID
+                                <label htmlFor="userId" className="block text-sm font-medium text-foreground mb-1">
+                                    Employee
                                 </label>
                                 <Select
-                                    onValueChange={value => handleChange({ target: { name: "employeeId", value } })}
-                                    value={formData.employeeId}
+                                    onValueChange={value => handleChange({ target: { name: "userId", value } })}
+                                    value={formData.userId}
                                     required
                                 >
                                     <SelectTrigger className="w-full">
@@ -135,10 +171,29 @@ function RequestAddEditForm({ onSubmit, onCancel, initialData }) {
                                     </SelectTrigger>
                                     <SelectContent>
                                         {employees.map(employee => (
-                                            <SelectItem key={employee.id} value={employee.id.toString()}>
-                                                {employee.employeeId} - {employee.position}
+                                            <SelectItem key={employee.id} value={employee.userId.toString()}>
+                                                {employee.employeeId} - {employee.position} ({employee.userEmail})
                                             </SelectItem>
                                         ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
+                                <label htmlFor="status" className="block text-sm font-medium text-foreground mb-1">
+                                    Status
+                                </label>
+                                <Select
+                                    onValueChange={value => handleChange({ target: { name: "status", value } })}
+                                    value={formData.status}
+                                    required
+                                >
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="Select status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Pending">Pending</SelectItem>
+                                        <SelectItem value="Approved">Approved</SelectItem>
+                                        <SelectItem value="Denied">Denied</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>

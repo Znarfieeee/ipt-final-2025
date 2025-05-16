@@ -23,7 +23,7 @@ async function create(req, res, next) {
 async function getAll(req, res, next) {
     try {
         const workflows = await db.Workflow.findAll({
-            include: [{ model: db.Employee }]
+            include: [{ model: db.Employee }],
         })
         res.json(workflows)
     } catch (err) {

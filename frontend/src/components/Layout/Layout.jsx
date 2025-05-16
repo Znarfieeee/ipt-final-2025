@@ -1,7 +1,8 @@
 import React from "react"
-import { Outlet, Link, Navigate, useLocation } from "react-router-dom"
-// import useBackend from "../../api/fakeBackendConnection"
-// import { useApi } from "../../api"
+import { Outlet, Link, Navigate, useLocation, useNavigate } from "react-router-dom"
+import useBackend from "../../api/fakeBackendConnection"
+import { useApi } from "../../api"
+import backendConnection from "../../api/BackendConnection"
 
 // Components
 import { FaRegCircleUser } from "react-icons/fa6"
@@ -14,21 +15,35 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { showToast } from "../../util/alertHelper"
 
 const Layout = () => {
-    // const location = useLocation()
-    // const backend = useBackend()
-    // const api = useApi(backend)
+    const location = useLocation()
+    const navigate = useNavigate()
+    const backend = useBackend()
+    const api = useApi(backend)
 
-    // // Redirect to login if not authenticated
-    // if (!api.isAuthenticated() && location.pathname !== "/login") {
-    //     return <Navigate to="/login" replace />
-    // }
+    // Redirect to login if not authenticated
+    if (!api.isAuthenticated() && location.pathname !== "/login") {
+        return <Navigate to="/login" replace />
+    }
 
-    // // Redirect to dashboard if authenticated and on login page
-    // if (api.isAuthenticated() && location.pathname === "/login") {
-    //     return <Navigate to="/" replace />
-    // }
+    // Redirect to dashboard if authenticated and on login page
+    if (api.isAuthenticated() && location.pathname === "/login") {
+        return <Navigate to="/" replace />
+    }
+
+    const handleLogout = async () => {
+        try {
+            await backendConnection.logout()
+            localStorage.removeItem("token")
+            showToast("success", "Logged out successfully!")
+            navigate("/login")
+        } catch (error) {
+            console.error("Logout error:", error)
+            showToast("error", "Logout failed. Please try again.")
+        }
+    }
 
     return (
         <div className="min-h-screen flex flex-col">
@@ -40,28 +55,35 @@ const Layout = () => {
                         </Link>
                     </div>
                     <div className="flex flex-col md:flex-row items-center gap-6">
-                        {/* {api.isAuthenticated() ? ( */}
-                        <>
-                            <Link to="/accounts" className="text-gray-200 hover:text-blue-400 transition-colors">
-                                Accounts
-                            </Link>
-                            <Link to="/employees" className="text-gray-200 hover:text-blue-400 transition-colors">
-                                Employees
-                            </Link>
-                            <Link to="/departments" className="text-gray-200 hover:text-blue-400 transition-colors">
-                                Departments
-                            </Link>
-                            <Link to="/requests" className="text-gray-200 hover:text-blue-400 transition-colors">
-                                Requests
-                            </Link>
-                        </>
-                        {/* ) : (
+                        {api.isAuthenticated() ? (
+                            <>
+                                <Link to="/accounts" className="text-gray-200 hover:text-blue-400 transition-colors">
+                                    Accounts
+                                </Link>
+                                <Link to="/employees" className="text-gray-200 hover:text-blue-400 transition-colors">
+                                    Employees
+                                </Link>
+                                <Link to="/departments" className="text-gray-200 hover:text-blue-400 transition-colors">
+                                    Departments
+                                </Link>
+                                <Link to="/requests" className="text-gray-200 hover:text-blue-400 transition-colors">
+                                    Requests
+                                </Link>
+                                <button
+                                    onClick={handleLogout}
+                                    className="flex items-center gap-1 text-gray-200 hover:text-red-400 transition-colors ml-4"
+                                >
+                                    <RiLogoutCircleLine className="text-lg" />
+                                    <span>Logout</span>
+                                </button>
+                            </>
+                        ) : (
                             <>
                                 <Link to="/login" className="text-gray-200 hover:text-blue-400 transition-colors">
                                     Login
                                 </Link>
                             </>
-                        )} */}
+                        )}
                     </div>
                 </div>
             </nav>

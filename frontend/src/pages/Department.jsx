@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { useFakeBackend } from "../api/fakeBackend"
+import backendConnection from "../api/BackendConnection"
+import { USE_FAKE_BACKEND } from "../api/config"
 import "../index.css"
 
 // Components
@@ -9,7 +11,7 @@ import ButtonWithIcon from "../components/ButtonWithIcon"
 // UI Libraries
 import { CiEdit } from "react-icons/ci"
 import { IoAddSharp } from "react-icons/io5"
-import { showToast } from "../util/alertHelper";
+import { showToast } from "../util/alertHelper"
 
 function Department() {
     const [depts, setDepts] = useState([])
@@ -20,28 +22,44 @@ function Department() {
     const { fakeFetch } = useFakeBackend()
 
     useEffect(() => {
-        const fetchUsers = async () => {
+        const fetchDepartments = async () => {
             try {
-                const response = await fakeFetch("/departments", {
-                    method: "GET",
-                    body: "",
-                })
+                setLoading(true)
+                console.log("Fetching departments...")
 
-                const data = await response.json()
-                if (data.error) {
-                    throw new Error(data.error)
+                let data
+                if (!USE_FAKE_BACKEND) {
+                    // Use real backend
+                    data = await backendConnection.getDepartments()
+                } else {
+                    // Use fake backend
+                    const response = await fakeFetch("/departments", {
+                        method: "GET",
+                        body: "",
+                    })
+
+                    if (!response.ok) {
+                        throw new Error("Failed to fetch departments")
+                    }
+
+                    data = await response.json()
+                    if (data.error) {
+                        throw new Error(data.error)
+                    }
                 }
 
-                setDepts(data)
+                console.log("Departments fetched successfully:", data)
+                setDepts(Array.isArray(data) ? data : [])
                 setError(null)
             } catch (err) {
-                console.error("Error fetching department: ", err)
-                setError(err.message)
+                console.error("Error fetching departments: ", err)
+                setError("Failed to load departments. Please try again later.")
+                showToast("error", "Failed to load departments. Please try again later.")
             } finally {
                 setLoading(false)
             }
         }
-        fetchUsers()
+        fetchDepartments()
     }, [fakeFetch])
 
     const handleAdd = () => {
@@ -55,31 +73,46 @@ function Department() {
     }
 
     const handleFormSubmit = async formData => {
-        e.preventDefault()
         try {
-            const method = editingUser ? "PUT" : "POST"
-            const url = editingUser ? `/departments/${editingUser.id}` : "/departments"
+            if (!USE_FAKE_BACKEND) {
+                // Use real backend
+                if (editingUser?.id) {
+                    // Pass id separately from the data
+                    await backendConnection.updateDepartment(editingUser.id, formData)
+                } else {
+                    await backendConnection.createDepartment(formData)
+                }
 
-            const response = await fakeFetch(url, {
-                method,
-                body: formData,
-            })
+                // Refresh the departments list
+                const refreshedDepts = await backendConnection.getDepartments()
+                setDepts(refreshedDepts)
+            } else {
+                // Use fake backend
+                const method = editingUser ? "PUT" : "POST"
+                const url = editingUser ? `/departments/${editingUser.id}` : "/departments"
 
-            const data = await response.json()
-            if (data.error) {
-                throw new Error(data.error)
+                const response = await fakeFetch(url, {
+                    method,
+                    body: formData,
+                })
+
+                const data = await response.json()
+                if (data.error) {
+                    throw new Error(data.error)
+                }
+
+                // Refresh the departments list
+                const updatedResponse = await fakeFetch("/departments")
+                const updatedData = await updatedResponse.json()
+                setDepts(updatedData)
             }
 
-            // Refresh the departments list
-            const updatedResponse = await fakeFetch("/departments")
-            const updatedData = await updatedResponse.json()
-            setDepts(updatedData)
-
             // Show success message
-            showToast("success", "Department created successfully!")
+            showToast("success", editingUser ? "Department updated successfully!" : "Department created successfully!")
             setShowForm(false)
             setEditingUser(null)
         } catch (err) {
+            console.error("Error saving department:", err)
             showToast("error", err.message || "An error occurred while saving the department")
         }
     }
