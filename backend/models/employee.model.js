@@ -16,6 +16,10 @@ module.exports = sequelize => {
             type: DataTypes.STRING,
             allowNull: false,
         },
+        DepartmentId: {
+            type: DataTypes.STRING,
+            allowNull: false,
+        },
         hireDate: {
             type: DataTypes.DATE,
             allowNull: false,

@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from "react"
 import { useFakeBackend } from "../api/fakeBackend"
+import backendConnection from "../api/BackendConnection"
+import { USE_FAKE_BACKEND } from "../api/config"
+import { showToast } from "../util/alertHelper"
 import "../index.css"
 
 // Components
@@ -21,41 +24,59 @@ function Requests() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // Fetch requests, employees and users data
-                const [requestsResponse, usersResponse] = await Promise.all([
-                    fakeFetch("/requests", {
-                        method: "GET",
-                        body: "",
-                    }),
-                    fakeFetch("/accounts", {
-                        method: "GET",
-                        body: "",
-                    }),
-                ])
+                setLoading(true)
+                let requestsData = []
 
-                const requestsData = await requestsResponse.json()
-                const usersData = await usersResponse.json()
+                if (!USE_FAKE_BACKEND) {
+                    // Use real backend
+                    const requestsResponse = await backendConnection.getRequests()
+                    requestsData = Array.isArray(requestsResponse) ? requestsResponse : []
 
-                if (requestsData.error) throw new Error(requestsData.error)
-                if (usersData.error) throw new Error(usersData.error)
+                    // Combine request data with user details
+                    const requestsWithUsers = requestsData.map(request => {
+                        // Get user data from the nested Employee.User structure
+                        const user = request.Employee?.User
+                        const userType = user ? (user.role === "Admin" ? "Admin User" : "Normal User") : "Unknown User"
+                        return {
+                            ...request,
+                            employeeEmail: user ? `${user.email} (${userType})` : "Unknown Employee",
+                            requestItems: request.RequestItems || request.requestItems || [], // Handle both camelCase and PascalCase
+                        }
+                    })
+                    setRequests(requestsWithUsers)
+                } else {
+                    // Use fake backend
+                    const [requestsResponse, employeesResponse, usersResponse] = await Promise.all([
+                        fakeFetch("/requests"),
+                        fakeFetch("/employees"),
+                        fakeFetch("/accounts"),
+                    ])
+                    const [requests, employees, users] = await Promise.all([
+                        requestsResponse.json(),
+                        employeesResponse.json(),
+                        usersResponse.json(),
+                    ])
 
-                // Ensure we have arrays
-                const requestsArray = Array.isArray(requestsData) ? requestsData : []
-                const usersArray = Array.isArray(usersData) ? usersData : [] // Combine request data with employee and user details
-                const requestsWithEmployees = requestsArray.map(request => {
-                    const user = usersArray.find(user => user.employeeId === request.employeeId)
-                    const userType = user ? (user.role === "Admin" ? "Admin User" : "Normal User") : "Unknown User"
-                    return {
-                        ...request,
-                        employeeEmail: user ? `${user.email} (${userType})` : "Unknown Employee",
-                    }
-                })
-
-                setRequests(requestsWithEmployees)
+                    const requestsWithUsers = requests.map(request => {
+                        const employee = employees.find(
+                            emp => emp.id === request.employeeId || emp.id === request.EmployeeId
+                        )
+                        const user = employee ? users.find(u => u.id === employee.userId) : null
+                        const userType = user ? (user.role === "Admin" ? "Admin User" : "Normal User") : "Unknown User"
+                        return {
+                            ...request,
+                            userId: employee ? employee.userId : "",
+                            employeeEmail: user ? `${user.email} (${userType})` : "Unknown Employee",
+                            requestItems: request.RequestItems || request.requestItems || [],
+                        }
+                    })
+                    setRequests(requestsWithUsers)
+                }
                 setError(null)
             } catch (err) {
                 console.error("Error fetching data: ", err)
                 setError(err.message)
+                showToast("error", "Failed to load requests")
             } finally {
                 setLoading(false)
             }
@@ -83,8 +104,97 @@ function Requests() {
     }
 
     const handleEdit = request => {
-        setEditingRequest(request)
+        let userId = ""
+        if (!USE_FAKE_BACKEND) {
+            userId = request.Employee?.User?.id || ""
+        } else {
+            userId = request.employeeId || request.EmployeeId || ""
+        }
+        setEditingRequest({ ...request, userId })
         setShowForm(true)
+    }
+
+    const handleFormSubmit = async formData => {
+        try {
+            if (!USE_FAKE_BACKEND) {
+                // Use real backend
+                if (editingRequest?.id) {
+                    await backendConnection.updateRequest(editingRequest.id, formData)
+                } else {
+                    await backendConnection.createRequest(formData)
+                }
+
+                // Always refetch the requests list (to get full joined data)
+                const refreshedRequests = await backendConnection.getRequests()
+
+                // Combine with user info from nested Employee.User
+                const requestsWithUsers = refreshedRequests.map(request => {
+                    const user = request.Employee?.User
+                    const userType = user ? (user.role === "Admin" ? "Admin User" : "Normal User") : "Unknown User"
+                    return {
+                        ...request,
+                        employeeEmail: user ? `${user.email} (${userType})` : "Unknown Employee",
+                        requestItems: request.RequestItems || request.requestItems || [],
+                    }
+                })
+
+                setRequests(requestsWithUsers)
+            } else {
+                // Use fake backend
+                const method = editingRequest ? "PUT" : "POST"
+                const url = editingRequest ? `/requests/${editingRequest.id}` : "/requests"
+
+                const response = await fakeFetch(url, {
+                    method,
+                    body: JSON.stringify(formData),
+                    headers: { "Content-Type": "application/json" },
+                })
+
+                const data = await response.json()
+                if (data.error) {
+                    throw new Error(data.error)
+                }
+
+                // Refresh the requests, employees, and users
+                const [requestsResponse, employeesResponse, usersResponse] = await Promise.all([
+                    fakeFetch("/requests"),
+                    fakeFetch("/employees"),
+                    fakeFetch("/accounts"),
+                ])
+                const [requests, employees, users] = await Promise.all([
+                    requestsResponse.json(),
+                    employeesResponse.json(),
+                    usersResponse.json(),
+                ])
+
+                const requestsWithUsers = requests.map(request => {
+                    const employee = employees.find(
+                        emp => emp.id === request.employeeId || emp.id === request.EmployeeId
+                    )
+                    const user = employee ? users.find(u => u.id === employee.userId) : null
+                    const userType = user ? (user.role === "Admin" ? "Admin User" : "Normal User") : "Unknown User"
+                    return {
+                        ...request,
+                        userId: employee ? employee.userId : "",
+                        employeeEmail: user ? `${user.email} (${userType})` : "Unknown Employee",
+                        requestItems: request.RequestItems || request.requestItems || [],
+                    }
+                })
+                setRequests(requestsWithUsers)
+            }
+
+            showToast("success", editingRequest ? "Request updated successfully!" : "Request created successfully!")
+            setShowForm(false)
+            setEditingRequest(null)
+        } catch (err) {
+            console.error("Error submitting request:", err)
+            showToast("error", err.message || "An error occurred while saving the request")
+        }
+    }
+
+    const handleFormCancel = () => {
+        setShowForm(false)
+        setEditingRequest(null)
     }
 
     if (loading) {
@@ -129,7 +239,7 @@ function Requests() {
                                 Request Type
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
-                                Employee ID
+                                Employee
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
                                 Requested Items
@@ -156,11 +266,8 @@ function Requests() {
                                     </td>
                                     <td className="px-6 py-4 text-start text-foreground">
                                         <div className="flex flex-col space-y-1">
-                                            {request.requestItems.map((item, index) => (
-                                                <div
-                                                    key={index}
-                                                    className="flex items-center space-x-2 bg-gray-50 p-2 rounded-md"
-                                                >
+                                            {request.requestItems?.map((item, index) => (
+                                                <div key={index} className="flex items-center gap-2">
                                                     <span className="font-medium">{item.name}</span>
                                                     <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
                                                         Qty: {item.quantity}
@@ -195,18 +302,7 @@ function Requests() {
             </div>
 
             {showForm && (
-                <RequestAddForm
-                    onSubmit={data => {
-                        // Handle form submission
-                        setShowForm(false)
-                        setEditingRequest(null)
-                    }}
-                    onCancel={() => {
-                        setShowForm(false)
-                        setEditingRequest(null)
-                    }}
-                    initialData={editingRequest}
-                />
+                <RequestAddForm onSubmit={handleFormSubmit} onCancel={handleFormCancel} initialData={editingRequest} />
             )}
         </>
     )

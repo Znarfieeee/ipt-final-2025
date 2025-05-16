@@ -71,7 +71,7 @@ async function transfer(req, res, next) {
     try {
         const employee = await db.Employee.findByPk(req.params.id)
         if (!employee) throw new Error("Employee not found")
-        await employee.update({ departmentId: req.body.departmentId })
+        await employee.update({ DepartmentId: req.body.departmentId })
         await db.Workflow.create({
             employeeId: employee.id,
             type: "Transfer",

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react"
 import { useFakeBackend } from "../api/fakeBackend"
+import backendConnection from "../api/BackendConnection"
+import { USE_FAKE_BACKEND } from "../api/config"
 import { showToast } from "../util/alertHelper"
 
 function TransferForm({ initialData, onSubmit, onCancel }) {
@@ -12,10 +14,18 @@ function TransferForm({ initialData, onSubmit, onCancel }) {
     useEffect(() => {
         const fetchDepartments = async () => {
             try {
-                const response = await fakeFetch("/departments")
-                const data = await response.json()
+                let data
+                if (!USE_FAKE_BACKEND) {
+                    // Use real backend
+                    data = await backendConnection.getDepartments()
+                } else {
+                    // Use fake backend
+                    const response = await fakeFetch("/departments")
+                    data = await response.json()
+                }
                 setDepartments(data)
             } catch (err) {
+                console.error("Error fetching departments:", err)
                 showToast("error", "Failed to fetch departments")
             }
         }

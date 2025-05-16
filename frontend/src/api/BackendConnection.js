@@ -250,6 +250,14 @@ class BackendConnection {
     async getAuthEmployees() {
         return this.fetchData("/auth/employees")
     }
+
+    // Employee Transfers
+    async transferEmployee(employeeId, departmentId) {
+        return this.fetchData(`/employees/${employeeId}/transfer`, {
+            method: "POST",
+            body: { departmentId },
+        })
+    }
 }
 
 const backendConnection = new BackendConnection()

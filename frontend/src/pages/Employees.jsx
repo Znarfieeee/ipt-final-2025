@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react"
 import { useFakeBackend } from "../api/fakeBackend"
 import { useNavigate } from "react-router-dom"
+import backendConnection from "../api/BackendConnection"
+import { USE_FAKE_BACKEND } from "../api/config"
+import { showToast } from "../util/alertHelper"
 // Components
 import EmployeeAddForm from "../components/EmployeeAddEditForm"
 import ButtonWithIcon from "../components/ButtonWithIcon"
@@ -25,89 +28,100 @@ function Employees() {
     const [selectedEmployee, setSelectedEmployee] = useState(null)
     const { fakeFetch } = useFakeBackend()
     const navigate = useNavigate()
+    const [departments, setDepartments] = useState([])
+
+    const loadEmployeesData = async () => {
+        try {
+            let employeesData = []
+            let usersData = []
+            let departmentsData = []
+
+            if (!USE_FAKE_BACKEND) {
+                const [employeesResponse, usersResponse, departmentsResponse] = await Promise.all([
+                    backendConnection.getEmployees(),
+                    backendConnection.getUsers(),
+                    backendConnection.getDepartments(),
+                ])
+                employeesData = Array.isArray(employeesResponse) ? employeesResponse : []
+                usersData = Array.isArray(usersResponse) ? usersResponse : []
+                departmentsData = Array.isArray(departmentsResponse) ? departmentsResponse : []
+            } else {
+                // Use fake backend
+                const [employeesResponse, usersResponse] = await Promise.all([
+                    fakeFetch("/employees", { method: "GET", body: "" }),
+                    fakeFetch("/accounts", { method: "GET", body: "" }),
+                ])
+
+                const [employees, users] = await Promise.all([employeesResponse.json(), usersResponse.json()])
+                employeesData = Array.isArray(employees) ? employees : []
+                usersData = Array.isArray(users) ? users : []
+            }
+
+            setDepartments(departmentsData)
+
+            // Combine employee data with user and department info
+            const employeesWithUserInfo = employeesData.map(employee => {
+                const user = usersData.find(user => user && user.id === employee.userId)
+                const department = departmentsData.find(dept => dept.id === employee.DepartmentId)
+                return {
+                    ...employee,
+                    userEmail: user ? `${user.email}` : "No email assigned",
+                    departmentName: department ? department.name : "Unknown",
+                }
+            })
+
+            setEmployees(employeesWithUserInfo)
+            setError(null)
+        } catch (err) {
+            console.error("Error fetching data: ", err)
+            setError(err.message)
+            showToast("error", "Failed to load employees")
+        } finally {
+            setLoading(false)
+        }
+    }
 
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                // Fetch both employees and users data
-                const employeesResponse = await fakeFetch("/employees", {
-                    method: "GET",
-                    body: "",
-                });
-                
-                const employeesData = await employeesResponse.json();
-                if (employeesData.error) throw new Error(employeesData.error);
-                
-                // Fetch users separately with error handling
-                let usersData = [];
-                try {
-                    const usersResponse = await fakeFetch("/accounts", {
-                        method: "GET",
-                        body: "",
-                    });
-                    usersData = await usersResponse.json();
-                    if (usersData.error) console.warn("User data fetch error:", usersData.error);
-                } catch (userErr) {
-                    console.warn("Failed to fetch user data:", userErr.message);
-                    // Continue with empty users array
-                }
-
-                // Combine employee data with user account details
-                const employeesWithUserInfo = employeesData.map(employee => {
-                    const user = usersData.find(user => user && user.id === employee.userId);
-                    return {
-                        ...employee,
-                        userEmail: user ? `${user.email}` : "No email assigned",
-                    }
-                });
-
-                setEmployees(employeesWithUserInfo);
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching data: ", err);
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
-        }
-        fetchData();
-    }, [fakeFetch]);
+        loadEmployeesData()
+    }, [fakeFetch])
 
     const handleFormSubmit = async formData => {
         try {
-            const method = editingUser ? "PUT" : "POST"
-            const url = editingUser ? `/employees/${editingUser.id}` : "/employees"
+            if (!USE_FAKE_BACKEND) {
+                // Use real backend
+                if (editingUser?.id) {
+                    await backendConnection.updateEmployee(editingUser.id, formData)
+                } else {
+                    await backendConnection.createEmployee(formData)
+                }
 
-            // Prepare the data for submission
-            const submissionData = {
-                ...formData,
-                id: editingUser?.id,
-                departmentId: parseInt(formData.departmentId),
-                hireDate: formData.hireDate.toISOString().split("T")[0],
+                // Refresh the employees list
+                await loadEmployeesData()
+            } else {
+                // Use fake backend
+                const method = editingUser ? "PUT" : "POST"
+                const url = editingUser ? `/employees/${editingUser.id}` : "/employees"
+
+                const response = await fakeFetch(url, {
+                    method,
+                    body: formData,
+                })
+
+                const data = await response.json()
+                if (data.error) {
+                    throw new Error(data.error)
+                }
+
+                // Refresh the employees list
+                await loadEmployeesData()
             }
 
-            const response = await fakeFetch(url, {
-                method,
-                body: submissionData,
-            })
-
-            const data = await response.json()
-            if (data.error) {
-                throw new Error(data.error)
-            }
-
-            // Refresh the employees list
-            const updatedResponse = await fakeFetch("/employees")
-            const updatedData = await updatedResponse.json()
-            setEmployees(updatedData)
-
-            // Show success message
-            alert(`Employee ${editingUser ? "updated" : "created"} successfully!`)
+            showToast("success", `Employee ${editingUser ? "updated" : "created"} successfully!`)
             setShowForm(false)
             setEditingUser(null)
         } catch (err) {
             console.error("Error submitting employee:", err)
-            alert(err.message || "An error occurred while saving the employee")
+            showToast("error", err.message || "An error occurred while saving the employee")
         }
     }
 
@@ -145,15 +159,38 @@ function Employees() {
         )
     }
     const getNextEmployeeId = () => {
-        const latestEmployee = [...employees].sort((a, b) => {
-            const aNum = parseInt(a.employeeId.replace("EMP", ""))
-            const bNum = parseInt(b.employeeId.replace("EMP", ""))
-            return bNum - aNum
-        })[0]
+        try {
+            // If no employees exist, start with EMP001
+            if (!employees || employees.length === 0) {
+                console.log("No employees found, starting with EMP001")
+                return "EMP001"
+            }
 
-        const lastNumber = latestEmployee ? parseInt(latestEmployee.employeeId.replace("EMP", "")) : 0
-        const nextNumber = (lastNumber + 1).toString().padStart(3, "0")
-        return `EMP${nextNumber}`
+            console.log("Current employees:", employees)
+
+            // Find the highest employee ID
+            let maxNumber = 0
+            employees.forEach(employee => {
+                if (employee?.employeeId) {
+                    const num = parseInt(employee.employeeId.replace("EMP", "")) || 0
+                    maxNumber = Math.max(maxNumber, num)
+                }
+            })
+
+            console.log("Max employee number found:", maxNumber)
+
+            // Generate next number
+            const nextNumber = (maxNumber + 1).toString().padStart(3, "0")
+            const newId = `EMP${nextNumber}`
+
+            console.log("Generated new employee ID:", newId)
+            return newId
+        } catch (error) {
+            console.error("Error generating employee ID:", error)
+            // Fallback to a timestamp-based ID if something goes wrong
+            const timestamp = Date.now().toString().slice(-3)
+            return `EMP${timestamp}`
+        }
     }
 
     const handleAdd = () => {
@@ -169,7 +206,7 @@ function Employees() {
             employeeId: employee.employeeId,
             userId: employee.userId,
             position: employee.position,
-            departmentId: employee.departmentId,
+            DepartmentId: employee.DepartmentId,
             hireDate: employee.hireDate,
             status: employee.status,
         })
@@ -198,27 +235,18 @@ function Employees() {
 
     const handleTransferSubmit = async formData => {
         try {
-            const response = await fakeFetch(`/employees/${transferringEmployee.id}/transfer`, {
-                method: "PUT",
-                body: formData,
-            })
-
-            const data = await response.json()
-            if (data.error) {
-                throw new Error(data.error)
+            if (!USE_FAKE_BACKEND) {
+                await backendConnection.transferEmployee(transferringEmployee.id, formData.departmentId)
+            } else {
+                // ...fake backend logic...
             }
-
-            // Refresh the employees list
-            const updatedResponse = await fakeFetch("/employees")
-            const updatedData = await updatedResponse.json()
-            setEmployees(updatedData)
-
-            alert("Employee transferred successfully!")
+            await loadEmployeesData()
+            showToast("success", "Employee transferred successfully!")
             setShowTransferForm(false)
             setTransferringEmployee(null)
         } catch (err) {
             console.error("Error transferring employee:", err)
-            alert(err.message || "An error occurred while transferring the employee")
+            showToast("error", err.message || "An error occurred while transferring the employee")
         }
     }
 
@@ -281,10 +309,10 @@ function Employees() {
                                         {employee.position}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-start text-foreground">
-                                        {employee.departmentId}
+                                        {employee.departmentName}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-start text-foreground">
-                                        {employee.hireDate}
+                                        {new Date(employee.hireDate).toLocaleDateString("en-CA")}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-start">
                                         {handleStatus(employee.status)}

@@ -56,12 +56,19 @@ router.delete("/:id([0-9]+)", authorize(Role.Admin), _delete)
 
 async function create(req, res, next) {
     try {
+        // Find the employee by userId from the request body
+        const employee = await db.Employee.findOne({
+            where: { userId: req.body.userId },
+        })
+        if (!employee)
+            throw new Error("Employee not found for the selected user")
+
         // Prepare the request data with proper structure for nested creation
         const requestData = {
             type: req.body.type,
-            employeeId: req.user.employeeId,
+            employeeId: employee.id,
             status: req.body.status || "Pending",
-            RequestItems: req.body.requestItems || [], // Must match the association name (case sensitive)
+            RequestItems: req.body.requestItems || [],
         }
 
         const request = await db.Request.create(requestData, {
@@ -77,7 +84,13 @@ async function create(req, res, next) {
 async function getAll(req, res, next) {
     try {
         const requests = await db.Request.findAll({
-            include: [{ model: db.RequestItem }, { model: db.Employee }],
+            include: [
+                { model: db.RequestItem },
+                {
+                    model: db.Employee,
+                    include: [{ model: db.User }],
+                },
+            ],
         })
         res.json(requests)
     } catch (err) {

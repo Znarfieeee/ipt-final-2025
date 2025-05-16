@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react"
 import { DatePicker } from "./ui/date-picker"
+import backendConnection from "../api/BackendConnection"
+import { USE_FAKE_BACKEND } from "../api/config"
 import { useFakeBackend } from "../api/fakeBackend"
+import { showToast } from "../util/alertHelper"
 
 function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
     const { fakeFetch } = useFakeBackend()
@@ -11,46 +14,59 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
         userEmail: "", // This will be set in useEffect when we have the users data
         userId: initialData?.userId || "",
         position: initialData?.position || "",
-        departmentId: initialData?.departmentId ? initialData.departmentId.toString() : "",
-        hireDate: initialData?.hireDate ? new Date(initialData.hireDate) : null,
+        DepartmentId: initialData?.DepartmentId ? String(initialData.DepartmentId) : "",
+        hireDate: initialData?.hireDate ? new Date(initialData.hireDate) : new Date(),
         status: initialData?.status || "Active",
     })
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [deptsResponse, usersResponse] = await Promise.all([
-                    fakeFetch("/departments"),
-                    fakeFetch("/accounts"),
-                ])
+                let departmentsData = []
+                let usersData = []
 
-                const [departments, users] = await Promise.all([
-                    deptsResponse.json(),
-                    usersResponse.json(),
-                ])
+                if (!USE_FAKE_BACKEND) {
+                    // Use real backend
+                    const [deptsResponse, usersResponse] = await Promise.all([
+                        backendConnection.getDepartments(),
+                        backendConnection.getUsers(),
+                    ])
+                    departmentsData = Array.isArray(deptsResponse) ? deptsResponse : []
+                    usersData = Array.isArray(usersResponse) ? usersResponse : []
+                } else {
+                    // Use fake backend
+                    const [deptsResponse, usersResponse] = await Promise.all([
+                        fakeFetch("/departments"),
+                        fakeFetch("/accounts"),
+                    ])
 
-                // Ensure both departments and users are arrays before setting them
-                setDepartments(Array.isArray(departments) ? departments : [])
-                setUsers(Array.isArray(users) ? users : [])
+                    const [depts, users] = await Promise.all([deptsResponse.json(), usersResponse.json()])
+                    departmentsData = Array.isArray(depts) ? depts : []
+                    usersData = Array.isArray(users) ? users : []
+                }
+
+                setDepartments(departmentsData)
+                setUsers(usersData)
 
                 // If editing, set user email and other fields
                 if (initialData) {
-                    const user = users.find(u => u.id === initialData.userId)
+                    const user = usersData.find(u => u.id === initialData.userId)
                     if (user) {
                         setFormData(prev => ({
                             ...prev,
-                            userEmail: user.email,
-                            userId: user.id,
-                            position: initialData.position,
-                            departmentId: initialData.departmentId.toString(),
-                            hireDate: initialData.hireDate ? new Date(initialData.hireDate) : null,
-                            status: initialData.status,
+                            userEmail: user.email || "",
+                            userId: user.id || "",
+                            position: initialData.position || "",
+                            DepartmentId: initialData.DepartmentId ? String(initialData.DepartmentId) : "",
+                            hireDate: initialData.hireDate ? new Date(initialData.hireDate) : new Date(),
+                            status: initialData.status || "Active",
                         }))
                     }
                 }
             } catch (err) {
                 console.error("Error fetching data:", err)
-                setDepartments([]) // Set fallback empty arrays in case of error
+                showToast("error", "Failed to load form data")
+                setDepartments([])
                 setUsers([])
             }
         }
@@ -63,13 +79,13 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
             const selectedUser = users.find(user => user.email === value)
             setFormData(prev => ({
                 ...prev,
-                userEmail: value,
+                userEmail: value || "",
                 userId: selectedUser?.id || "",
             }))
         } else {
             setFormData(prev => ({
                 ...prev,
-                [name]: value,
+                [name]: value || "",
             }))
         }
     }
@@ -77,23 +93,38 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
     const handleDateChange = date => {
         setFormData(prev => ({
             ...prev,
-            hireDate: date,
+            hireDate: date || new Date(),
         }))
     }
 
-    const handleSubmit = e => {
+    const handleSubmit = async e => {
         e.preventDefault()
-        const submitData = {
-            ...formData,
-            departmentId: Number(formData.departmentId),
-            hireDate: formData.hireDate ? formData.hireDate.toISOString().split("T")[0] : null,
-        }
+        try {
+            const submitData = {
+                ...formData,
+                DepartmentId: formData.DepartmentId ? Number(formData.DepartmentId) : "",
+                hireDate:
+                    formData.hireDate instanceof Date
+                        ? formData.hireDate.toLocaleDateString("en-CA")
+                        : new Date().toLocaleDateString("en-CA"),
+            }
 
-        if (initialData?.id) {
-            submitData.id = initialData.id
-        }
+            if (!USE_FAKE_BACKEND) {
+                // Use real backend
+                if (initialData?.id) {
+                    // Pass id separately from the data
+                    await backendConnection.updateEmployee(initialData.id, submitData)
+                } else {
+                    await backendConnection.createEmployee(submitData)
+                }
+            }
 
-        onSubmit?.(submitData)
+            onSubmit?.(submitData)
+            showToast("success", initialData ? "Employee updated successfully!" : "Employee added successfully!")
+        } catch (err) {
+            console.error("Error submitting employee:", err)
+            showToast("error", err.message || "Failed to save employee")
+        }
     }
 
     return (
@@ -113,7 +144,7 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
                                     type="text"
                                     id="employeeId"
                                     name="employeeId"
-                                    value={formData.employeeId}
+                                    value={formData.employeeId || ""}
                                     className="w-full p-2 rounded-md border border-input bg-background text-foreground"
                                     readOnly
                                     required
@@ -126,7 +157,7 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
                                 <select
                                     id="userEmail"
                                     name="userEmail"
-                                    value={formData.userEmail}
+                                    value={formData.userEmail || ""}
                                     onChange={handleChange}
                                     className="w-full p-2 rounded-md border border-input bg-background text-foreground"
                                     required
@@ -147,7 +178,7 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
                                     type="text"
                                     id="position"
                                     name="position"
-                                    value={formData.position}
+                                    value={formData.position || ""}
                                     onChange={handleChange}
                                     className="w-full p-2 rounded-md border border-input bg-background text-foreground"
                                     required
@@ -155,15 +186,15 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
                             </div>
                             <div>
                                 <label
-                                    htmlFor="departmentId"
+                                    htmlFor="DepartmentId"
                                     className="block text-sm font-medium text-foreground mb-1"
                                 >
                                     Department
                                 </label>
                                 <select
-                                    id="departmentId"
-                                    name="departmentId"
-                                    value={formData.departmentId}
+                                    id="DepartmentId"
+                                    name="DepartmentId"
+                                    value={formData.DepartmentId || ""}
                                     onChange={handleChange}
                                     className="w-full p-2 rounded-md border border-input bg-background text-foreground"
                                     required
@@ -181,7 +212,7 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
                                     Hire Date
                                 </label>
                                 <DatePicker
-                                    date={formData.hireDate}
+                                    date={formData.hireDate || new Date()}
                                     setDate={handleDateChange}
                                     className="bg-background border-input"
                                 />
@@ -193,7 +224,7 @@ function EmployeeAddEditForm({ onSubmit, onCancel, initialData }) {
                                 <select
                                     id="status"
                                     name="status"
-                                    value={formData.status}
+                                    value={formData.status || "Active"}
                                     onChange={handleChange}
                                     className="w-full p-2 rounded-md border border-input bg-background text-foreground"
                                     required
