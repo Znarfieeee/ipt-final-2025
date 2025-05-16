@@ -1,6 +1,9 @@
 import React, { useState } from "react"
 import backendConnection from "../api/BackendConnection"
+
+// UI Components
 import { showToast } from "../util/alertHelper"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 function AccountsAddForm({ onSubmit, onCancel, initialData }) {
     const [formData, setFormData] = useState({
@@ -57,15 +60,22 @@ function AccountsAddForm({ onSubmit, onCancel, initialData }) {
                             <label htmlFor="title" className="block text-sm font-medium text-foreground mb-1">
                                 Title
                             </label>
-                            <input
-                                type="text"
-                                id="title"
+                            <Select
                                 name="title"
                                 value={formData.title}
-                                onChange={handleChange}
-                                className="w-full p-2 rounded-md border border-input bg-background text-foreground"
+                                onValueChange={value => handleChange({ target: { name: "title", value } })}
                                 required
-                            />
+                            >
+                                <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Select Title" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Mr">Mr</SelectItem>
+                                    <SelectItem value="Mrs">Mrs</SelectItem>
+                                    <SelectItem value="Ms">Ms</SelectItem>
+                                    <SelectItem value="Miss">Miss</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
 
                         <div className="flex gap-4">
