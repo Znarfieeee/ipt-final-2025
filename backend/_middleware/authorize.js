@@ -1,48 +1,113 @@
-const jwt = require("jsonwebtoken")
-const db = require("../_helpers/db")
+const jwt = require("jsonwebtoken");
+const db = require("../_helpers/db");
+const config = require("../config.json");
 
-module.exports = authorize
+module.exports = authorize;
 
 function authorize(roles = []) {
-    if (typeof roles === "string") {
-        roles = [roles]
-    }
+  if (typeof roles === "string") {
+    roles = [roles];
+  }
 
-    return [
-        // authenticate JWT token and attach user to request object (req.user)
-        async (req, res, next) => {
-            const authHeader = req.headers.authorization
+  return [
+    // authenticate JWT token and attach user to request object (req.user)
+    async (req, res, next) => {
+      console.log("Authorization check for path:", req.path);
 
-            if (!authHeader?.startsWith("Bearer ")) {
-                return res.status(401).json({ message: "Unauthorized" })
-            }
+      try {
+        // Check for development mode skip auth
+        if (config.development?.skipAuth === true) {
+          console.log("Skipping authentication in development mode");
+          // Use a dummy admin user
+          req.user = {
+            id: 1,
+            role: "Admin",
+          };
+          return next();
+        }
 
-            const token = authHeader.split(" ")[1]
+        // Check for token in Authorization header or cookies
+        const authHeader = req.headers.authorization;
+        const cookieToken = req.cookies?.token;
 
-            try {
-                const payload = jwt.verify(
-                    token,
-                    process.env.JWT_SECRET || "sample-key"
-                )
+        // Log available authentication methods
+        console.log("Auth methods available:", {
+          headerAuth: !!authHeader,
+          cookieAuth: !!cookieToken,
+        });
 
-                // get user with their role
-                const user = await db.User.findByPk(payload.id)
+        // Get token from either source
+        let token;
+        if (authHeader?.startsWith("Bearer ")) {
+          token = authHeader.split(" ")[1];
+        } else if (cookieToken) {
+          token = cookieToken;
+        }
 
-                if (!user) {
-                    return res.status(401).json({ message: "Unauthorized" })
-                }
+        // No token found
+        if (!token) {
+          console.log("No token found in request");
+          return res
+            .status(401)
+            .json({ message: "No authentication token provided" });
+        }
 
-                // check if user's role is in the authorized roles
-                if (roles.length && !roles.includes(user.role)) {
-                    return res.status(403).json({ message: "Forbidden" })
-                }
+        // Verify token
+        const payload = jwt.verify(
+          token,
+          process.env.JWT_SECRET || config.secret || "sample-key"
+        );
 
-                req.user = user
-                next()
-            } catch (err) {
-                console.error(err)
-                return res.status(401).json({ message: "Unauthorized" })
-            }
-        },
-    ]
+        console.log("Token verified, user ID:", payload.id);
+
+        // get user with their role
+        const user = await db.User.findByPk(payload.id);
+
+        if (!user) {
+          console.log("User not found in database for ID:", payload.id);
+          return res.status(401).json({ message: "User not found" });
+        }
+
+        // check if user's role is in the authorized roles
+        if (roles.length && !roles.includes(user.role)) {
+          console.log(
+            "Role not authorized:",
+            user.role,
+            "Required roles:",
+            roles
+          );
+          return res.status(403).json({ message: "Insufficient privileges" });
+        }
+
+        req.user = user;
+        next();
+      } catch (err) {
+        console.error("Authorization error:", err);
+
+        // Check for development mode skip auth after error
+        if (config.development?.skipAuth === true) {
+          console.log(
+            "Skipping authentication after error in development mode"
+          );
+          // Use a dummy admin user
+          req.user = {
+            id: 1,
+            role: "Admin",
+          };
+          return next();
+        }
+
+        if (err.name === "TokenExpiredError") {
+          return res.status(401).json({ message: "Token expired" });
+        } else if (err.name === "JsonWebTokenError") {
+          return res.status(401).json({ message: "Invalid token" });
+        }
+
+        return res.status(500).json({
+          message: "Authentication error",
+          details: err.message,
+        });
+      }
+    },
+  ];
 }

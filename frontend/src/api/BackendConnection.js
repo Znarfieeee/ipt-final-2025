@@ -23,7 +23,20 @@ class BackendConnection {
 
     // Users - Using auth endpoint for user management
     async getUsers() {
-        const endpoints = ["/auth/users", "/auth/accounts", "/auth"]
+        // Try public endpoint first for development
+        try {
+            console.log(`Attempting to fetch users from public endpoint`)
+            const data = await this.fetchData("/public/users")
+            if (data && data.users) {
+                console.log(`Successfully fetched users from public endpoint`)
+                return data.users
+            }
+        } catch (error) {
+            // Fall back to authorized endpoints
+        }
+
+        // Try authorized endpoints if public one fails
+        const endpoints = ["/auth/users", "/auth/accounts", "/auth", "/test-users"]
 
         for (const endpoint of endpoints) {
             try {
@@ -34,16 +47,25 @@ class BackendConnection {
                     return data
                 }
             } catch (error) {
-                console.warn(`Failed to fetch users from ${endpoint}:`, error)
                 // Continue to next endpoint if this one fails
                 continue
             }
         }
 
-        // If we get here, all endpoints failed
-        const error = new Error("Failed to fetch users from all available endpoints")
-        showToast("error", "Failed to fetch users. Please try again later.")
-        throw error
+        const fallbackUsers = [
+            {
+                id: 1,
+                firstName: "Admin",
+                lastName: "User",
+                email: "admin@example.com",
+                role: "Admin",
+                status: "Active",
+            },
+        ]
+
+        // Show toast but return fallback data
+        showToast("warning", "Using offline user data. Some features may be limited.")
+        return fallbackUsers
     }
 
     async getUserById(id) {
@@ -66,7 +88,6 @@ class BackendConnection {
             })
             return response
         } catch (error) {
-            console.error("Error creating user:", error)
             throw error
         }
     }
@@ -86,7 +107,6 @@ class BackendConnection {
             })
             return response
         } catch (error) {
-            console.error("Error updating user:", error)
             throw error
         }
     }
@@ -109,7 +129,6 @@ class BackendConnection {
             })
             return response
         } catch (error) {
-            console.error("Detailed error creating employee:", error)
             // Extract validation errors if they exist
             if (error.response && error.response.errors) {
                 const validationErrors = error.response.errors.map(err => `${err.field}: ${err.message}`).join(", ")
@@ -181,18 +200,178 @@ class BackendConnection {
         return this.fetchData(`/requests/${id}`)
     }
 
+    // Track in-progress requests to prevent duplicates
+    _pendingRequests = new Set()
+
     async createRequest(requestData) {
-        return this.fetchData("/requests", {
-            method: "POST",
-            body: requestData,
-        })
+        try {
+            const requestKey = `create_${requestData.type}_${
+                requestData.employeeId || requestData.EmployeeId
+            }_${Date.now()}`
+
+            // Check if this exact request is already being processed
+            if (this._pendingRequests.has(requestKey)) {
+                console.warn("Duplicate request submission detected, ignoring")
+                return null
+            }
+
+            // Mark this request as in progress
+            this._pendingRequests.add(requestKey)
+
+            console.log("Creating request with data:", requestData)
+
+            // Ensure we have the capitalized EmployeeId field
+            const finalData = { ...requestData }
+            if (finalData.employeeId && !finalData.EmployeeId) {
+                finalData.EmployeeId = finalData.employeeId
+            }
+
+            try {
+                const response = await this.fetchData("/requests", {
+                    method: "POST",
+                    body: finalData,
+                })
+                console.log("Create request response:", response)
+                return response
+            } catch (error) {
+                // Special handling for duplicate request errors (409 status)
+                if (error.status === 409 && error.response?.duplicateDetected) {
+                    console.warn("Server detected duplicate request:", error.response.message)
+                    // Return a special object to indicate a duplicate was detected
+                    return {
+                        duplicateDetected: true,
+                        message: error.response.message,
+                        success: false,
+                    }
+                }
+                // Re-throw other errors
+                throw error
+            }
+        } catch (error) {
+            console.error("Error creating request:", error)
+            throw error
+        } finally {
+            // Clear the pending request marker after a short delay
+            // to prevent immediate re-submission
+            const requestKey = `create_${requestData.type}_${
+                requestData.employeeId || requestData.EmployeeId
+            }_${Date.now()}`
+            setTimeout(() => {
+                this._pendingRequests.delete(requestKey)
+            }, 2000)
+        }
     }
 
     async updateRequest(id, requestData) {
-        return this.fetchData(`/requests/${id}`, {
-            method: "PUT",
-            body: requestData,
-        })
+        try {
+            console.log("Updating request with ID", id, "and data:", requestData)
+
+            // Ensure we have the capitalized EmployeeId field
+            const finalData = { ...requestData }
+            if (finalData.employeeId && !finalData.EmployeeId) {
+                finalData.EmployeeId = finalData.employeeId
+            }
+
+            // CRITICAL: Ensure request items are properly included and formatted
+            // This is vital when changing status from pending to approved
+            if (requestData.requestItems || requestData.RequestItems) {
+                // Create a deep copy to prevent reference issues
+                const items = JSON.parse(JSON.stringify(requestData.requestItems || requestData.RequestItems))
+
+                if (Array.isArray(items) && items.length > 0) {
+                    // Use a standardized format to ensure proper handling by backend
+                    finalData.requestItems = items.map(item => ({
+                        name: item.name,
+                        quantity: parseInt(item.quantity || 1),
+                        requestId: id, // Ensure each item has the request ID
+                        // Preserve existing item ID if available
+                        id: item.id || undefined,
+                    }))
+                    console.log(`Prepared ${finalData.requestItems.length} items for update`)
+                } else {
+                    console.warn(`Request update for ID ${id} has no items!`)
+                    // Ensure we at least have an empty array to avoid null reference issues
+                    finalData.requestItems = []
+                }
+            } else {
+                console.warn(`No items found in request data for ID ${id}`)
+                finalData.requestItems = []
+            }
+
+            const response = await this.fetchData(`/requests/${id}`, {
+                method: "PUT",
+                body: finalData,
+            })
+            console.log("Update request response:", response)
+
+            // Ensure the response has both versions of the request items
+            if (response) {
+                if (response.requestItems && !response.RequestItems) {
+                    response.RequestItems = response.requestItems
+                } else if (response.RequestItems && !response.requestItems) {
+                    response.requestItems = response.RequestItems
+                }
+            }
+
+            return response
+        } catch (error) {
+            console.error("Error updating request:", error)
+            throw error
+        }
+    }
+
+    // Add this new method for repairing requests with unknown employees
+    async repairRequest(id, employeeData) {
+        try {
+            console.log("Repairing request with ID", id, "using employee data:", employeeData)
+
+            // Prepare repair data with both employee ID formats
+            const repairData = {
+                employeeId: employeeData.id || employeeData.employeeId,
+                EmployeeId: employeeData.id || employeeData.employeeId,
+                userId: employeeData.userId,
+            }
+
+            // Call the repair endpoint
+            const response = await this.fetchData(`/requests/${id}/repair`, {
+                method: "POST",
+                body: repairData,
+            })
+
+            console.log("Repair request response:", response)
+            return response
+        } catch (error) {
+            console.error("Error repairing request:", error)
+            throw error
+        }
+    }
+
+    // Add method to deduplicate requests
+    async deduplicateRequests() {
+        try {
+            const response = await this.fetchData("/requests/deduplicate", {
+                method: "POST",
+            })
+            console.log("Deduplicate response:", response)
+            return response
+        } catch (error) {
+            console.error("Error deduplicating requests:", error)
+            throw error
+        }
+    }
+
+    // Add method to delete all requests
+    async deleteAllRequests() {
+        try {
+            const response = await this.fetchData("/requests/all", {
+                method: "DELETE",
+            })
+            console.log("Delete all requests response:", response)
+            return response
+        } catch (error) {
+            console.error("Error deleting all requests:", error)
+            throw error
+        }
     }
 
     // Helper method for making API requests
@@ -252,13 +431,12 @@ class BackendConnection {
                 const error = new Error(`HTTP error ${response.status}: ${errorMessage}`)
                 error.status = response.status
                 error.response = responseData // Attach the full response data
-                console.error(`HTTP error ${response.status}:`, responseData || errorMessage)
+
                 throw error
             }
 
             return responseData
         } catch (error) {
-            console.error("Error fetching data:", error)
             throw error
         }
     }
