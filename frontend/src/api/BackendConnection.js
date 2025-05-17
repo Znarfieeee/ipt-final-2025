@@ -4,7 +4,7 @@ import { showToast } from "../util/alertHelper"
 const BASE_URL =
     window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
         ? "http://localhost:3000"
-        : "https://ipt-final-2025-backend-o7yl.onrender.com"
+        : "https://ipt-final-2025-backend-17bh.onrender.com"
 
 class BackendConnection {
     // Authentication

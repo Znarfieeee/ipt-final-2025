@@ -25,7 +25,7 @@ app.use(cookieParser());
 
 // Allow multiple origins for CORS
 const allowedOrigins = [
-  "https://ipt-final-2025-espelita.onrender.com",
+  "https://ipt-final-2025-trapa.onrender.com",
   "http://localhost:5173",
   "http://localhost:3000",
 ];
