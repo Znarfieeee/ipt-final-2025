@@ -19,6 +19,8 @@ function Department() {
     const [error, setError] = useState(null)
     const [showForm, setShowForm] = useState(false)
     const [editingUser, setEditingUser] = useState(null)
+    const [isAddButtonLoading, setIsAddButtonLoading] = useState(false)
+    const [actionButtonsLoading, setActionButtonsLoading] = useState({})
     const { fakeFetch } = useFakeBackend()
 
     const fetchDepartments = async () => {
@@ -62,13 +64,25 @@ function Department() {
     }, [fakeFetch])
 
     const handleAdd = () => {
-        setEditingUser(null)
-        setShowForm(true)
+        setIsAddButtonLoading(true)
+        try {
+            setEditingUser(null)
+            setShowForm(true)
+        } finally {
+            setIsAddButtonLoading(false)
+        }
     }
 
     const handleEdit = department => {
-        setEditingUser(department)
-        setShowForm(true)
+        // Set loading state for this specific department
+        setActionButtonsLoading(prev => ({ ...prev, [department.id]: true }))
+        try {
+            setEditingUser(department)
+            setShowForm(true)
+        } finally {
+            // Clear loading state
+            setActionButtonsLoading(prev => ({ ...prev, [department.id]: false }))
+        }
     }
 
     const handleFormSubmit = async formData => {
@@ -177,6 +191,8 @@ function Department() {
                         tooltipContent="Add New Department"
                         onClick={handleAdd}
                         variant="primary"
+                        isLoading={isAddButtonLoading}
+                        loadingText="Adding..."
                     />
                 </div>
                 <hr />
@@ -224,6 +240,8 @@ function Department() {
                                             tooltipContent="Edit Department"
                                             onClick={() => handleEdit(dept)}
                                             variant="primary"
+                                            isLoading={actionButtonsLoading[dept.id]}
+                                            loadingText="Editing..."
                                         />
                                     </td>
                                 </tr>

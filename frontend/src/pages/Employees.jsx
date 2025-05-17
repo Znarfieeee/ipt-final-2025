@@ -291,7 +291,7 @@ function Employees() {
                     <div className="flex items-center space-x-4">
                         <ButtonWithIcon
                             icon={IoAddSharp}
-                            text="employee"
+                            text="Employee"
                             tooltipContent="Add New Employee"
                             onClick={handleAdd}
                             variant="primary"

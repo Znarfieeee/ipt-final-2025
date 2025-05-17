@@ -1,6 +1,6 @@
 const jwt = require("jsonwebtoken")
 const db = require("../_helpers/db")
-const config = require("../config")
+const config = require("../config.js")
 
 module.exports = authorize
 
