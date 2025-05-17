@@ -204,9 +204,17 @@ class BackendConnection {
             // Try up to 3 times to get the request with its items
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
-                    const response = await fetch(`${this.apiUrl}/requests/${id}`, {
+                    // Use BASE_URL instead of this.apiUrl which is undefined
+                    const response = await fetch(`${BASE_URL}/requests/${id}`, {
                         method: "GET",
-                        headers: this.headers,
+                        headers: {
+                            "Content-Type": "application/json",
+                            ...(localStorage.getItem("token")
+                                ? {
+                                      Authorization: `Bearer ${localStorage.getItem("token")}`,
+                                  }
+                                : {}),
+                        }
                     })
 
                     if (!response.ok) {
@@ -224,6 +232,12 @@ class BackendConnection {
 
                     // If we have items, return the data
                     if (hasItems) {
+                        // Ensure we have items in both formats for consistency
+                        if (data.requestItems && data.requestItems.length > 0 && (!data.RequestItems || data.RequestItems.length === 0)) {
+                            data.RequestItems = [...data.requestItems]
+                        } else if (data.RequestItems && data.RequestItems.length > 0 && (!data.requestItems || data.requestItems.length === 0)) {
+                            data.requestItems = [...data.RequestItems]
+                        }
                         return data
                     }
 
@@ -271,18 +285,14 @@ class BackendConnection {
             // Mark this request as in progress
             this._pendingRequests.add(requestKey)
 
-            console.log("Creating request with data:", requestData)
-
-            // Ensure we have the capitalized EmployeeId field
-            const finalData = { ...requestData }
-            if (finalData.employeeId && !finalData.EmployeeId) {
-                finalData.EmployeeId = finalData.employeeId
-            }
+            // IMPORTANT FIX: Clean & format request items before sending
+            const cleanedData = this._cleanRequestItems(requestData);
+            console.log("Creating request with cleaned data:", cleanedData)
 
             try {
                 const response = await this.fetchData("/requests", {
                     method: "POST",
-                    body: finalData,
+                    body: cleanedData,
                 })
                 console.log("Create request response:", response)
                 return response
@@ -321,16 +331,34 @@ class BackendConnection {
             console.log(`Updating request ${id} with data:`, {
                 ...requestData,
                 itemCount: (requestData.requestItems?.length || 0) + (requestData.RequestItems?.length || 0),
-            })
-
-            // Ensure we have both requestItems and RequestItems for backend compatibility
-            if (requestData.requestItems && !requestData.RequestItems) {
-                requestData.RequestItems = [...requestData.requestItems]
-            } else if (requestData.RequestItems && !requestData.requestItems) {
-                requestData.requestItems = [...requestData.RequestItems]
-            }
-
-            // Use BASE_URL instead of this.apiUrl which is undefined
+            });
+            
+            // Save the original request items for verification
+            const originalItems = (requestData.requestItems || requestData.RequestItems || []).map(item => ({
+                ...item,
+                name: item.name,
+                quantity: parseInt(item.quantity) || 1
+            }));
+            
+            console.log(`Update contains ${originalItems.length} items:`, 
+                originalItems.map(item => `${item.name} (${item.quantity})`).join(", "));
+            
+            // Prepare request items for backend - ensure they're properly formatted
+            const requestItems = originalItems.map(item => ({
+                name: item.name,
+                quantity: parseInt(item.quantity) || 1,
+                // Only include real database IDs, not temporary IDs
+                ...(item.id && !String(item.id).startsWith('temp-') ? { id: parseInt(item.id) } : {})
+            }));
+            
+            // Create a clean copy of the request data with both formats of items
+            const cleanedData = {
+                ...requestData,
+                requestItems: requestItems,
+                RequestItems: requestItems
+            };
+            
+            // Use direct fetch for more reliable results
             const response = await fetch(`${BASE_URL}/requests/${id}`, {
                 method: "PUT",
                 headers: {
@@ -339,74 +367,110 @@ class BackendConnection {
                         ? {
                               Authorization: `Bearer ${localStorage.getItem("token")}`,
                           }
-                        : {}),
+                        : {})
                 },
-                body: JSON.stringify(requestData),
-            })
-
+                body: JSON.stringify(cleanedData)
+            });
+            
             if (!response.ok) {
-                // Safely handle error response that might not be JSON
-                try {
-                    const text = await response.text()
-                    if (text && text.trim()) {
-                        try {
-                            const errorData = JSON.parse(text)
-                            throw new Error(errorData.message || `Failed to update request: ${response.status}`)
-                        } catch (parseError) {
-                            // If JSON parsing fails, use the text response
-                            throw new Error(`Failed to update request: ${text || response.status}`)
-                        }
-                    } else {
-                        throw new Error(`Failed to update request: ${response.status}`)
-                    }
-                } catch (textError) {
-                    throw new Error(`Failed to update request: ${response.status}`)
-                }
+                const errorText = await response.text();
+                console.error(`Update failed with status ${response.status}:`, errorText);
+                throw new Error(`Update failed: ${response.status} ${errorText || ''}`);
             }
-
-            // Safely handle response that might not be JSON
+            
+            // Parse the response
+            let responseData;
             try {
-                const text = await response.text()
-                if (text && text.trim()) {
-                    try {
-                        const data = JSON.parse(text)
-
-                        // Log what came back from the backend
-                        console.log(`Update response for request ${id}:`, {
-                            success: true,
-                            hasItems: !!(data.requestItems?.length || data.RequestItems?.length),
-                            itemCount: (data.requestItems?.length || 0) + (data.RequestItems?.length || 0),
-                        })
-
-                        return data
-                    } catch (parseError) {
-                        console.error("Error parsing response as JSON:", parseError)
-                        // Return the original data if parsing fails
-                        return {
-                            ...requestData,
-                            id: id,
-                        }
+                responseData = await response.json();
+                console.log(`Backend returned updated request:`, {
+                    id: responseData.id,
+                    itemCount: (responseData.requestItems?.length || 0) + (responseData.RequestItems?.length || 0)
+                });
+            } catch (parseError) {
+                console.error("Error parsing response:", parseError);
+                // If parse fails, create a basic response
+                responseData = { id, ...cleanedData };
+            }
+            
+            // Verify items are in response
+            let finalItems = responseData.requestItems || responseData.RequestItems || [];
+            
+            // If response is missing items but we had items originally, fetch them directly
+            if (finalItems.length === 0 && originalItems.length > 0) {
+                console.log(`Response missing items, fetching them directly`);
+                try {
+                    // Get items directly from items endpoint
+                    const fetchedItems = await this.getRequestItems(id);
+                    if (fetchedItems && fetchedItems.length > 0) {
+                        console.log(`Retrieved ${fetchedItems.length} items directly`);
+                        finalItems = fetchedItems;
+                        
+                        // Update response with fetched items
+                        responseData.requestItems = finalItems;
+                        responseData.RequestItems = finalItems;
+                    } else {
+                        // Fall back to original items if direct fetch returned nothing
+                        console.log(`Direct fetch returned no items, using original items`);
+                        responseData.requestItems = originalItems;
+                        responseData.RequestItems = originalItems;
                     }
-                } else {
-                    // Handle empty response
-                    console.warn("Empty response from server, returning original request data")
-                    return {
-                        ...requestData,
-                        id: id,
-                    }
-                }
-            } catch (textError) {
-                console.error("Error reading response text:", textError)
-                // Return the original data if text extraction fails
-                return {
-                    ...requestData,
-                    id: id,
+                } catch (fetchError) {
+                    console.error("Error fetching items after update:", fetchError);
+                    // Use original items as fallback
+                    responseData.requestItems = originalItems;
+                    responseData.RequestItems = originalItems;
                 }
             }
+            
+            console.log(`Final request has ${
+                (responseData.requestItems?.length || 0)
+            } items after update`);
+            
+            return responseData;
         } catch (error) {
-            console.error("Error updating request:", error)
-            throw error
+            console.error("Error updating request:", error);
+            throw error;
         }
+    }
+    
+    // FIXED: Add new helper method to properly clean and format request items
+    _cleanRequestItems(requestData) {
+        // Create a copy to avoid modifying the original
+        const cleanedData = { ...requestData };
+        
+        // Ensure we have the capitalized EmployeeId field
+        if (cleanedData.employeeId && !cleanedData.EmployeeId) {
+            cleanedData.EmployeeId = cleanedData.employeeId;
+        }
+        
+        // Get items from either field name
+        const items = cleanedData.requestItems || cleanedData.RequestItems || [];
+        
+        if (items.length > 0) {
+            // Format items properly - most importantly, remove temp IDs
+            const formattedItems = items.map(item => {
+                // Create a proper item object
+                const formattedItem = {
+                    name: item.name,
+                    quantity: parseInt(item.quantity) || 1
+                };
+                
+                // Only include ID if it's a real database ID (not a temp ID)
+                if (item.id && typeof item.id === 'number') {
+                    formattedItem.id = item.id;
+                }
+                
+                return formattedItem;
+            });
+            
+            console.log(`Formatted ${formattedItems.length} items correctly for backend`);
+            
+            // Set BOTH formats for maximum compatibility
+            cleanedData.requestItems = formattedItems;
+            cleanedData.RequestItems = formattedItems;
+        }
+        
+        return cleanedData;
     }
 
     // Add this new method for repairing requests with unknown employees
@@ -540,6 +604,93 @@ class BackendConnection {
             method: "POST",
             body: { departmentId },
         })
+    }
+
+    // Get request items directly by request ID
+    async getRequestItems(requestId) {
+        try {
+            console.log(`Fetching items directly for request ${requestId}`);
+            
+            // Try up to 5 times with increasing timeouts
+            for (let attempt = 1; attempt <= 5; attempt++) {
+                try {
+                    // Use direct fetch for more reliable results
+                    const response = await fetch(`${BASE_URL}/requests/${requestId}/items`, {
+                        method: "GET",
+                        headers: {
+                            "Content-Type": "application/json",
+                            ...(localStorage.getItem("token")
+                                ? {
+                                      Authorization: `Bearer ${localStorage.getItem("token")}`,
+                                  }
+                                : {})
+                        },
+                        cache: 'no-store', // Force fresh data without caching
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const items = await response.json();
+                    console.log(`Retrieved ${items?.length || 0} items for request ${requestId} (attempt ${attempt})`);
+                    
+                    // Store items in localStorage as a backup
+                    if (items && items.length > 0) {
+                        try {
+                            localStorage.setItem(`request_${requestId}_items`, JSON.stringify(items));
+                            console.log(`Cached ${items.length} items in local storage for request ${requestId}`);
+                        } catch (storageErr) {
+                            console.error("Failed to store items in localStorage:", storageErr);
+                        }
+                        return items;
+                    }
+                    
+                    // If we get an empty array and this isn't the last attempt, wait and try again
+                    if (attempt < 5) {
+                        console.log(`No items found on attempt ${attempt}, will retry after delay...`);
+                        await new Promise(resolve => setTimeout(resolve, 300 * attempt));
+                    }
+                } catch (error) {
+                    console.error(`Error on attempt ${attempt}:`, error);
+                    if (attempt < 5) {
+                        await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+                    } else {
+                        // On final attempt failure, try to get from localStorage
+                        try {
+                            const cachedItems = localStorage.getItem(`request_${requestId}_items`);
+                            if (cachedItems) {
+                                const parsedItems = JSON.parse(cachedItems);
+                                console.log(`Retrieved ${parsedItems.length} cached items from localStorage`);
+                                return parsedItems;
+                            }
+                        } catch (cacheErr) {
+                            console.error("Error retrieving from localStorage:", cacheErr);
+                        }
+                        throw error; // Re-throw on final failure
+                    }
+                }
+            }
+            
+            // Check localStorage as a last resort
+            try {
+                const cachedItems = localStorage.getItem(`request_${requestId}_items`);
+                if (cachedItems) {
+                    const parsedItems = JSON.parse(cachedItems);
+                    console.log(`Retrieved ${parsedItems.length} cached items from localStorage as fallback`);
+                    return parsedItems;
+                }
+            } catch (cacheErr) {
+                console.error("Error retrieving from localStorage:", cacheErr);
+            }
+            
+            // If all attempts returned empty arrays but no errors, return empty array
+            console.log(`No items found for request ${requestId} after ${5} attempts`);
+            return [];
+        } catch (error) {
+            console.error(`Error fetching items for request ${requestId}:`, error);
+            return []; // Return empty array on error
+        }
     }
 }
 

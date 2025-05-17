@@ -16,5 +16,15 @@ module.exports = sequelize => {
             allowNull: false,
             defaultValue: 1,
         },
+        requestId: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            references: {
+                model: 'Requests',
+                key: 'id'
+            },
+            onDelete: 'CASCADE',
+            onUpdate: 'CASCADE'
+        }
     })
 }
