@@ -3,19 +3,21 @@ import { useNavigate } from "react-router-dom"
 import { showToast } from "../util/alertHelper"
 import { USE_FAKE_BACKEND } from "../api/config"
 import useFakeBackend from "../api/fakeBackend"
-import { useAuth } from "../context/AuthContext"
+import backendConnection from "../api/BackendConnection"
+import LoadingButton from "../components/LoadingButton"
 
 function Login() {
     const emailRef = useRef()
     const passwordRef = useRef()
     const navigate = useNavigate()
     const [loading, setLoading] = useState(false)
+    const [error, setError] = useState("")
     const { fakeFetch } = useFakeBackend()
-    const { login } = useAuth() // Use the auth context
 
     const handleSubmit = async e => {
         e.preventDefault()
         setLoading(true)
+        setError("")
 
         try {
             const email = emailRef.current.value
@@ -36,15 +38,24 @@ function Login() {
                     showToast("success", "Login successful")
                     navigate("/")
                 } else {
-                    showToast("error", "Invalid credentials.")
+                    setError(result.message || "Invalid credentials")
+                    showToast("error", result.message || "Invalid credentials.")
                 }
             } else {
-                // Use the real backend through auth context
-                await login(email, password)
-                showToast("success", "Login successful")
-                navigate("/")
+                // Use the real backend through BackendConnection
+                const result = await backendConnection.login(email, password)
+
+                if (result) {
+                    showToast("success", "Login successful")
+                    navigate("/")
+                } else {
+                    setError("Login failed. Please check your credentials.")
+                    showToast("error", "Login failed. Please check your credentials.")
+                }
             }
         } catch (err) {
+            console.error("Login error:", err)
+            setError(err.message || "Unknown error")
             showToast("error", "Login failed: " + (err.message || "Unknown error"))
         } finally {
             setLoading(false)
@@ -59,6 +70,9 @@ function Login() {
                     <p className="mt-2 text-center text-sm text-gray-600">
                         {USE_FAKE_BACKEND ? "(Using Fake Backend)" : "(Using Real Backend)"}
                     </p>
+                    {error && (
+                        <div className="mt-2 p-2 bg-red-100 border border-red-300 text-red-600 rounded">{error}</div>
+                    )}
                 </div>
                 <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
                     <div className="rounded-md shadow-sm -space-y-px">
@@ -97,15 +111,14 @@ function Login() {
                     </div>
 
                     <div>
-                        <button
+                        <LoadingButton
                             type="submit"
-                            disabled={loading}
-                            className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white ${
-                                loading ? "bg-blue-400" : "bg-blue-600 hover:bg-blue-700"
-                            } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+                            isLoading={loading}
+                            loadingText="Signing in..."
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                         >
-                            {loading ? "Signing in..." : "Sign in"}
-                        </button>
+                            Sign in
+                        </LoadingButton>
                     </div>
                 </form>
             </div>

@@ -1,24 +1,72 @@
 import { showToast } from "../util/alertHelper"
 
-const BASE_URL = "https://ipt-final-2025-backend-17bh.onrender.com"
+// Hard code the production URL since the app is already deployed
+const BASE_URL =
+    window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+        ? "http://localhost:3000"
+        : "https://ipt-final-2025-backend-o7yl.onrender.com"
 
 class BackendConnection {
     // Authentication
     async login(email, password) {
-        return this.fetchData("/auth/login", {
-            method: "POST",
-            body: { email, password },
-        })
+        try {
+            // Make direct fetch request for login to avoid error handling issues
+            const response = await fetch(`${BASE_URL}/api/auth/login`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ email, password }),
+                credentials: "include", // Important for cookies
+            })
+
+            // Handle non-OK responses
+            if (!response.ok) {
+                // Try to get the error message from the response
+                let errorMsg = "Login failed"
+                try {
+                    const errorData = await response.json()
+                    errorMsg = errorData.message || errorData.error || errorMsg
+                } catch (_) {
+                    // If we can't parse JSON, just use status text
+                    errorMsg = response.statusText || errorMsg
+                }
+                throw new Error(errorMsg)
+            }
+
+            // Parse the JSON response
+            const result = await response.json()
+
+            if (result && result.token) {
+                // Store token and user info
+                localStorage.setItem("token", result.token)
+
+                if (result.user) {
+                    localStorage.setItem("userInfo", JSON.stringify(result.user))
+                }
+                return result
+            } else {
+                throw new Error("Invalid response from server")
+            }
+        } catch (error) {
+            console.error("Login error:", error)
+            throw error
+        }
     }
 
     async logout() {
-        // Call the logout endpoint
-        await this.fetchData("/auth/logout", {
-            method: "POST",
-        })
-
-        // Remove token from localStorage
-        localStorage.removeItem("token")
+        try {
+            // Call the logout endpoint
+            await this.fetchData("/api/auth/logout", {
+                method: "POST",
+            })
+        } catch (error) {
+            console.error("Logout error:", error)
+        } finally {
+            // Always remove token from localStorage even if API call fails
+            localStorage.removeItem("token")
+            localStorage.removeItem("userInfo")
+        }
     }
 
     // Users - Using auth endpoint for user management
@@ -188,7 +236,7 @@ class BackendConnection {
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
                     // Use BASE_URL instead of this.apiUrl which is undefined
-                    const response = await fetch(`${BASE_URL}/requests/${id}`, {
+                    const response = await fetch(`${BASE_URL}/api/requests/${id}`, {
                         method: "GET",
                         headers: {
                             "Content-Type": "application/json",
@@ -331,7 +379,7 @@ class BackendConnection {
             }
 
             // Use direct fetch for more reliable results
-            const response = await fetch(`${BASE_URL}/requests/${id}`, {
+            const response = await fetch(`${BASE_URL}/api/requests/${id}`, {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
@@ -460,7 +508,12 @@ class BackendConnection {
 
     // Helper method for making API requests
     async fetchData(endpoint, options = {}) {
-        const url = `${BASE_URL}${endpoint}`
+        // Ensure endpoint starts with /api if it's not already there
+        if (!endpoint.startsWith("/api") && !endpoint.startsWith("http")) {
+            endpoint = `/api${endpoint}`
+        }
+
+        const url = endpoint.startsWith("http") ? endpoint : `${BASE_URL}${endpoint}`
         const fetchOptions = {
             method: options.method || "GET",
             headers: {
@@ -482,42 +535,80 @@ class BackendConnection {
             fetchOptions.body = JSON.stringify(options.body)
         }
 
-        const response = await fetch(url, fetchOptions)
+        try {
+            const response = await fetch(url, fetchOptions)
 
-        // Handle 401 Unauthorized by redirecting to login
-        if (response.status === 401) {
-            localStorage.removeItem("token")
-            window.location.href = "/login"
-            return null
-        }
-
-        // Get the response content regardless of status
-        let responseData = null
-        const contentType = response.headers.get("Content-Type")
-        if (contentType && contentType.includes("application/json")) {
-            try {
-                responseData = await response.json()
-            } catch (e) {
-                console.warn("Could not parse response as JSON:", e)
-            }
-        }
-
-        // Check if response is OK
-        if (!response.ok) {
-            // Use any error message from the response
-            let errorMessage = response.statusText
-            if (responseData && (responseData.message || responseData.error)) {
-                errorMessage = responseData.message || responseData.error || response.statusText
+            // Handle 401 Unauthorized by redirecting to login
+            if (response.status === 401) {
+                localStorage.removeItem("token")
+                localStorage.removeItem("userInfo")
+                window.location.href = "/login"
+                return null
             }
 
-            const error = new Error(`HTTP error ${response.status}: ${errorMessage}`)
-            error.status = response.status
-            error.response = responseData // Attach the full response data
+            // Get the response content regardless of status
+            let responseData = null
+            const contentType = response.headers.get("Content-Type")
+
+            if (contentType && contentType.includes("application/json")) {
+                try {
+                    responseData = await response.json()
+                } catch (e) {
+                    console.warn("Could not parse response as JSON:", e)
+                    // Try to get text content if JSON parsing fails
+                    try {
+                        const textContent = await response.text()
+                        if (textContent) {
+                            responseData = { message: textContent }
+                        }
+                    } catch (_) {
+                        // If all parsing fails, create basic response
+                        responseData = {
+                            ok: response.ok,
+                            status: response.status,
+                            statusText: response.statusText,
+                        }
+                    }
+                }
+            } else {
+                // Try to get text content for non-JSON responses
+                try {
+                    const textContent = await response.text()
+                    responseData = { message: textContent }
+                } catch (_) {
+                    responseData = {
+                        ok: response.ok,
+                        status: response.status,
+                        statusText: response.statusText,
+                    }
+                }
+            }
+
+            // Check if response is OK
+            if (!response.ok) {
+                // Use any error message from the response
+                let errorMessage = response.statusText
+                if (responseData && (responseData.message || responseData.error)) {
+                    errorMessage = responseData.message || responseData.error || response.statusText
+                }
+
+                const error = new Error(`HTTP error ${response.status}: ${errorMessage}`)
+                error.status = response.status
+                error.response = responseData // Attach the full response data
+
+                throw error
+            }
+
+            return responseData
+        } catch (error) {
+            // Add more context to the error
+            if (!error.status) {
+                error.status = 0
+                error.message = `Network error: ${error.message}`
+            }
 
             throw error
         }
-
-        return responseData
     }
 
     async getAuthEmployees() {
@@ -539,7 +630,7 @@ class BackendConnection {
             for (let attempt = 1; attempt <= 5; attempt++) {
                 try {
                     // Use direct fetch for more reliable results
-                    const response = await fetch(`${BASE_URL}/requests/${requestId}/items`, {
+                    const response = await fetch(`${BASE_URL}/api/requests/${requestId}/items`, {
                         method: "GET",
                         headers: {
                             "Content-Type": "application/json",
