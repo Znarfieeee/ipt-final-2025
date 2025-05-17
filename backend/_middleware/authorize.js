@@ -1,113 +1,91 @@
-const jwt = require("jsonwebtoken");
-const db = require("../_helpers/db");
-const config = require("../config.json");
+const jwt = require("jsonwebtoken")
+const db = require("../_helpers/db")
+const config = require("../config.json")
 
-module.exports = authorize;
+module.exports = authorize
 
 function authorize(roles = []) {
-  if (typeof roles === "string") {
-    roles = [roles];
-  }
+    if (typeof roles === "string") {
+        roles = [roles]
+    }
 
-  return [
-    // authenticate JWT token and attach user to request object (req.user)
-    async (req, res, next) => {
-      console.log("Authorization check for path:", req.path);
+    return [
+        // authenticate JWT token and attach user to request object (req.user)
+        async (req, res, next) => {
+            try {
+                // Check for development mode skip auth
+                if (config.development?.skipAuth === true) {
+                    // Use a dummy admin user
+                    req.user = {
+                        id: 1,
+                        role: "Admin",
+                    }
+                    return next()
+                }
 
-      try {
-        // Check for development mode skip auth
-        if (config.development?.skipAuth === true) {
-          console.log("Skipping authentication in development mode");
-          // Use a dummy admin user
-          req.user = {
-            id: 1,
-            role: "Admin",
-          };
-          return next();
-        }
+                // Check for token in Authorization header or cookies
+                const authHeader = req.headers.authorization
+                const cookieToken = req.cookies?.token
 
-        // Check for token in Authorization header or cookies
-        const authHeader = req.headers.authorization;
-        const cookieToken = req.cookies?.token;
+                // Get token from either source
+                let token
+                if (authHeader?.startsWith("Bearer ")) {
+                    token = authHeader.split(" ")[1]
+                } else if (cookieToken) {
+                    token = cookieToken
+                }
 
-        // Log available authentication methods
-        console.log("Auth methods available:", {
-          headerAuth: !!authHeader,
-          cookieAuth: !!cookieToken,
-        });
+                // No token found
+                if (!token) {
+                    return res
+                        .status(401)
+                        .json({ message: "No authentication token provided" })
+                }
 
-        // Get token from either source
-        let token;
-        if (authHeader?.startsWith("Bearer ")) {
-          token = authHeader.split(" ")[1];
-        } else if (cookieToken) {
-          token = cookieToken;
-        }
+                // Verify token
+                const payload = jwt.verify(
+                    token,
+                    process.env.JWT_SECRET || config.secret || "sample-key"
+                )
 
-        // No token found
-        if (!token) {
-          console.log("No token found in request");
-          return res
-            .status(401)
-            .json({ message: "No authentication token provided" });
-        }
+                // get user with their role
+                const user = await db.User.findByPk(payload.id)
 
-        // Verify token
-        const payload = jwt.verify(
-          token,
-          process.env.JWT_SECRET || config.secret || "sample-key"
-        );
+                if (!user) {
+                    return res.status(401).json({ message: "User not found" })
+                }
 
-        console.log("Token verified, user ID:", payload.id);
+                // check if user's role is in the authorized roles
+                if (roles.length && !roles.includes(user.role)) {
+                    return res
+                        .status(403)
+                        .json({ message: "Insufficient privileges" })
+                }
 
-        // get user with their role
-        const user = await db.User.findByPk(payload.id);
+                req.user = user
+                next()
+            } catch (err) {
+                // Check for development mode skip auth after error
+                if (config.development?.skipAuth === true) {
+                    // Use a dummy admin user
+                    req.user = {
+                        id: 1,
+                        role: "Admin",
+                    }
+                    return next()
+                }
 
-        if (!user) {
-          console.log("User not found in database for ID:", payload.id);
-          return res.status(401).json({ message: "User not found" });
-        }
+                if (err.name === "TokenExpiredError") {
+                    return res.status(401).json({ message: "Token expired" })
+                } else if (err.name === "JsonWebTokenError") {
+                    return res.status(401).json({ message: "Invalid token" })
+                }
 
-        // check if user's role is in the authorized roles
-        if (roles.length && !roles.includes(user.role)) {
-          console.log(
-            "Role not authorized:",
-            user.role,
-            "Required roles:",
-            roles
-          );
-          return res.status(403).json({ message: "Insufficient privileges" });
-        }
-
-        req.user = user;
-        next();
-      } catch (err) {
-        console.error("Authorization error:", err);
-
-        // Check for development mode skip auth after error
-        if (config.development?.skipAuth === true) {
-          console.log(
-            "Skipping authentication after error in development mode"
-          );
-          // Use a dummy admin user
-          req.user = {
-            id: 1,
-            role: "Admin",
-          };
-          return next();
-        }
-
-        if (err.name === "TokenExpiredError") {
-          return res.status(401).json({ message: "Token expired" });
-        } else if (err.name === "JsonWebTokenError") {
-          return res.status(401).json({ message: "Invalid token" });
-        }
-
-        return res.status(500).json({
-          message: "Authentication error",
-          details: err.message,
-        });
-      }
-    },
-  ];
+                return res.status(500).json({
+                    message: "Authentication error",
+                    details: err.message,
+                })
+            }
+        },
+    ]
 }
