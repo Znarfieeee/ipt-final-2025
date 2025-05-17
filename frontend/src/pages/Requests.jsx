@@ -196,6 +196,24 @@ function Requests() {
                     requestsData = Array.from(uniqueRequestsMap.values())
                     console.log(`After deduplication: ${requestsData.length} unique requests`)
 
+                    // CRITICAL: Fetch items for any requests that don't have them
+                    for (const request of requestsData) {
+                        const hasItems = (request.requestItems?.length > 0) || (request.RequestItems?.length > 0)
+                        if (!hasItems && request.id) {
+                            console.log(`Request ${request.id} has no items, fetching directly`)
+                            try {
+                                const items = await backendConnection.getRequestItems(request.id)
+                                if (items && items.length > 0) {
+                                    console.log(`Retrieved ${items.length} items for request ${request.id}`)
+                                    request.requestItems = items
+                                    request.RequestItems = items
+                                }
+                            } catch (err) {
+                                console.error(`Failed to fetch items for request ${request.id}:`, err)
+                            }
+                        }
+                    }
+
                     const employeesData = Array.isArray(employeesResponse) ? employeesResponse : []
                     const usersData = Array.isArray(usersResponse) ? usersResponse : []
 
@@ -285,34 +303,31 @@ function Requests() {
 
                             // Try fetching individual request if items are missing
                             if (request.id) {
+                                // Use the direct items endpoint for reliability
                                 backendConnection
-                                    .getRequestById(request.id)
-                                    .then(detailedRequest => {
-                                        if (detailedRequest) {
-                                            const items =
-                                                detailedRequest.requestItems || detailedRequest.RequestItems || []
-                                            if (items.length > 0) {
-                                                console.log(
-                                                    `Retrieved ${items.length} items from detailed request ${request.id}`
-                                                )
+                                    .getRequestItems(request.id)
+                                    .then(items => {
+                                        if (items && items.length > 0) {
+                                            console.log(
+                                                `Retrieved ${items.length} items from direct fetch for request ${request.id}`
+                                            )
 
-                                                // Update this specific request in the state
-                                                setRequests(prevRequests =>
-                                                    prevRequests.map(req =>
-                                                        req.id === request.id
-                                                            ? {
-                                                                  ...req,
-                                                                  requestItems: items,
-                                                                  RequestItems: items,
-                                                              }
-                                                            : req
-                                                    )
+                                            // Update this specific request in the state
+                                            setRequests(prevRequests =>
+                                                prevRequests.map(req =>
+                                                    req.id === request.id
+                                                        ? {
+                                                              ...req,
+                                                              requestItems: items,
+                                                              RequestItems: items,
+                                                          }
+                                                        : req
                                                 )
-                                            }
+                                            )
                                         }
                                     })
                                     .catch(err => {
-                                        console.error(`Error fetching detailed request ${request.id}:`, err)
+                                        console.error(`Error fetching items for request ${request.id}:`, err)
                                     })
                             }
                         }
@@ -430,153 +445,125 @@ function Requests() {
     const refreshData = async () => {
         try {
             setLoading(true)
-            console.log("Refreshing request data...")
+            console.log("Refreshing all request data to ensure items are displayed...")
 
-            const [requestsResponse, employeesResponse, usersResponse] = await Promise.all([
-                backendConnection.getRequests(),
+            // Force a direct API call to get all requests with their items
+            const requestsResponse = await backendConnection.getRequests();
+            let requestsData = Array.isArray(requestsResponse) ? requestsResponse : []
+            console.log(`Retrieved ${requestsData.length} requests from backend`)
+
+            // Fetch employee and user data for proper display
+            const [employeesResponse, usersResponse] = await Promise.all([
                 backendConnection.getEmployees(),
                 backendConnection.getUsers(),
             ])
-
-            // Process responses same as in useEffect
-            let requestsData = Array.isArray(requestsResponse) ? requestsResponse : []
-            const uniqueRequestsMap = new Map()
-            requestsData.forEach(request => {
-                if (request.id) {
-                    uniqueRequestsMap.set(request.id, request)
-                }
-            })
-
-            requestsData = Array.from(uniqueRequestsMap.values())
-            console.log(`After refresh: ${requestsData.length} unique requests`)
-
             const employeesData = Array.isArray(employeesResponse) ? employeesResponse : []
             const usersData = Array.isArray(usersResponse) ? usersResponse : []
 
-            // Update employee map
-            setEmployeeMap(prevMap => {
-                const newMap = {}
-                employeesData.forEach(employee => {
-                    const user = usersData.find(u => u.id === employee.userId)
-                    if (user) {
-                        newMap[employee.id] = {
-                            ...employee,
-                            userEmail: user.email,
-                            userRole: user.role,
-                            User: user,
+            // CRITICAL FIX: Force item fetch for ALL requests to ensure they're available
+            const enhancedRequests = [];
+            for (const request of requestsData) {
+                if (!request.id) continue;
+                
+                // Check if items are already included in the request
+                const hasItems = (request.requestItems?.length > 0) || (request.RequestItems?.length > 0);
+                
+                let requestWithItems = {...request};
+                
+                if (!hasItems) {
+                    console.log(`Request ${request.id} has no items, fetching directly`);
+                    try {
+                        // Force fetch items directly from the items endpoint
+                        const items = await backendConnection.getRequestItems(request.id);
+                        if (items && items.length > 0) {
+                            console.log(`Retrieved ${items.length} items for request ${request.id}`);
+                            requestWithItems.requestItems = items;
+                            requestWithItems.RequestItems = items;
+                        } else {
+                            console.log(`No items found for request ${request.id}`);
+                            // Initialize empty arrays to prevent null/undefined errors
+                            requestWithItems.requestItems = [];
+                            requestWithItems.RequestItems = [];
+                        }
+                    } catch (error) {
+                        console.error(`Error fetching items for request ${request.id}:`, error);
+                        // Initialize empty arrays to prevent null/undefined errors
+                        requestWithItems.requestItems = [];
+                        requestWithItems.RequestItems = [];
+                    }
+                } else {
+                    // Ensure both formats exist for consistency
+                    if (request.requestItems && request.requestItems.length > 0) {
+                        if (!request.RequestItems || request.RequestItems.length === 0) {
+                            requestWithItems.RequestItems = [...request.requestItems];
+                        }
+                    } else if (request.RequestItems && request.RequestItems.length > 0) {
+                        if (!request.requestItems || request.requestItems.length === 0) {
+                            requestWithItems.requestItems = [...request.RequestItems];
                         }
                     }
-                })
-                return newMap
-            })
-            setUsersData(usersData)
-
-            // Apply repairs
-            const repairedRequests = await repairRequestEmployeeData(requestsData, employeesData, usersData)
-
-            // Process the requests with employee info (same as in useEffect)
-            const requestsWithUsers = repairedRequests.map(request => {
-                let employeeEmail = "Unknown Employee"
-                let employeeFound = false
-                let sourceMethod = "none"
-
-                // Debug info
-                console.log(`Processing request ${request.id || "new"}:`, {
-                    hasEmployee: !!request.Employee,
-                    hasEmployeeUser: request.Employee?.User ? true : false,
-                    employeeId: request.employeeId,
-                    EmployeeId: request.EmployeeId,
-                    itemCount: (request.requestItems?.length || 0) + (request.RequestItems?.length || 0),
-                })
-
-                // First try using nested Employee.User data from the API (most reliable)
+                    
+                    console.log(`Request ${request.id} already has ${
+                        (requestWithItems.requestItems?.length || 0)
+                    } items`);
+                }
+                
+                // Find employee information
+                let employeeEmail = "Unknown Employee";
+                let employeeFound = false;
+                
+                // Try to find employee data from various sources
                 if (request.Employee && request.Employee.User) {
-                    const user = request.Employee.User
-                    employeeEmail = user.email
+                    const user = request.Employee.User;
+                    employeeEmail = user.email;
                     if (user.role) {
-                        const userType = user.role === "Admin" ? "Admin User" : "Normal User"
-                        employeeEmail = `${employeeEmail}${userType ? ` (${userType})` : ""}`
+                        const userType = user.role === "Admin" ? "Admin User" : "Normal User";
+                        employeeEmail = `${employeeEmail} (${userType})`;
                     }
-                    employeeFound = true
-                    sourceMethod = "nested data"
-                }
-                // Second, check both employeeId variations directly
-                else if (
-                    (request.employeeId || request.EmployeeId) &&
-                    employeeMap[request.employeeId || request.EmployeeId]
-                ) {
-                    const employee = employeeMap[request.employeeId || request.EmployeeId]
-                    const userType = employee.userRole === "Admin" ? "Admin User" : "Normal User"
-                    employeeEmail = `${employee.userEmail}${userType ? ` (${userType})` : ""}`
-                    employeeFound = true
-                    sourceMethod = "employee map"
-                }
-                // Try using stored email directly as last resort
-                else if (request.employeeEmail) {
-                    employeeEmail = request.employeeEmail
-                    employeeFound = true
-                    sourceMethod = "direct email"
-                }
-
-                console.log(`Request ${request.id} employee (${sourceMethod}): ${employeeEmail}`)
-
-                // Enhanced handling of request items - ensure we find them in all possible locations
-                let requestItems = []
-
-                // Collect items from all possible sources
-                if (request.requestItems && request.requestItems.length > 0) {
-                    requestItems = [...request.requestItems]
-                    console.log(`Found ${requestItems.length} items in requestItems for request ${request.id}`)
-                } else if (request.RequestItems && request.RequestItems.length > 0) {
-                    requestItems = [...request.RequestItems]
-                    console.log(`Found ${requestItems.length} items in RequestItems for request ${request.id}`)
-                } else {
-                    console.log(`No items found for request ${request.id} - checking other sources`)
-
-                    // Try fetching individual request if items are missing
-                    if (request.id) {
-                        backendConnection
-                            .getRequestById(request.id)
-                            .then(detailedRequest => {
-                                if (detailedRequest) {
-                                    const items = detailedRequest.requestItems || detailedRequest.RequestItems || []
-                                    if (items.length > 0) {
-                                        console.log(
-                                            `Retrieved ${items.length} items from detailed request ${request.id}`
-                                        )
-
-                                        // Update this specific request in the state
-                                        setRequests(prevRequests =>
-                                            prevRequests.map(req =>
-                                                req.id === request.id
-                                                    ? {
-                                                          ...req,
-                                                          requestItems: items,
-                                                          RequestItems: items,
-                                                      }
-                                                    : req
-                                            )
-                                        )
-                                    }
-                                }
-                            })
-                            .catch(err => {
-                                console.error(`Error fetching detailed request ${request.id}:`, err)
-                            })
+                    employeeFound = true;
+                } else if ((request.employeeId || request.EmployeeId)) {
+                    const employeeId = request.employeeId || request.EmployeeId;
+                    const employee = employeesData.find(emp => emp.id === employeeId);
+                    
+                    if (employee) {
+                        const user = usersData.find(u => u.id === employee.userId);
+                        if (user) {
+                            const userType = user.role === "Admin" ? "Admin User" : "Normal User";
+                            employeeEmail = `${user.email} (${userType})`;
+                            employeeFound = true;
+                        }
                     }
                 }
-
-                return {
-                    ...request,
+                
+                enhancedRequests.push({
+                    ...requestWithItems,
                     employeeEmail,
-                    employeeFound,
-                    requestItems,
-                    RequestItems: requestItems, // Ensure both formats are available
+                    employeeFound
+                });
+            }
+            
+            console.log(`Processed ${enhancedRequests.length} requests with their items`);
+            
+            // Update the state with our enhanced requests
+            setRequests(enhancedRequests);
+            
+            // Update employee map for later use
+            const newEmployeeMap = {};
+            employeesData.forEach(employee => {
+                const user = usersData.find(u => u.id === employee.userId);
+                if (user) {
+                    newEmployeeMap[employee.id] = {
+                        ...employee,
+                        userEmail: user.email,
+                        userRole: user.role,
+                        User: user,
+                    };
                 }
-            })
-
-            setRequests(requestsWithUsers)
-            setError(null)
+            });
+            setEmployeeMap(newEmployeeMap);
+            setUsersData(usersData);
+            
+            setError(null);
         } catch (err) {
             console.error("Error refreshing data: ", err)
             setError(err.message)

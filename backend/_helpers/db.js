@@ -63,8 +63,21 @@ db.RefreshToken.belongsTo(db.User, { foreignKey: "accountId" });
 db.Employee.hasMany(db.Request);
 db.Request.belongsTo(db.Employee);
 
-db.Request.hasMany(db.RequestItem);
-db.RequestItem.belongsTo(db.Request);
+// Enhance relationship for Request and RequestItem with explicit onDelete and constraints
+db.Request.hasMany(db.RequestItem, {
+  foreignKey: {
+    name: "requestId",
+    allowNull: false
+  },
+  onDelete: "CASCADE",
+  onUpdate: "CASCADE"
+});
+db.RequestItem.belongsTo(db.Request, {
+  foreignKey: {
+    name: "requestId",
+    allowNull: false
+  }
+});
 
 db.Employee.hasMany(db.Workflow);
 db.Workflow.belongsTo(db.Employee);

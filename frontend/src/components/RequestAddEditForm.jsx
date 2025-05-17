@@ -148,6 +148,7 @@ function RequestAddEditForm({ onSubmit, onCancel, initialData }) {
                 )
             }
 
+            // Get all valid items with name and quantity
             const validItems = formData.requestItems.filter(item => item.name && item.quantity > 0)
             if (validItems.length === 0) {
                 throw new Error("Please add at least one valid item with a name and quantity")
@@ -207,14 +208,27 @@ function RequestAddEditForm({ onSubmit, onCancel, initialData }) {
                 console.error("Error fetching user data:", err)
             }
 
-            // IMPORTANT: Preserve original request items when updating
-            let requestItems = validItems.map(item => ({
-                name: item.name,
-                quantity: parseInt(item.quantity),
-                // For new items (with temp IDs), don't include an ID so the backend will create one
-                // For existing items, ensure ID is properly parsed as a number
-                ...(item.id && !item.id.toString().startsWith("temp-") ? { id: parseInt(item.id) } : {}),
-            }))
+            // CRITICAL FIX: Process request items properly for submission
+            // Ensure they're in the correct format and have no temporary IDs in DB
+            let requestItems = validItems.map(item => {
+                // Create a fresh item object with only the required fields
+                const cleanItem = {
+                    name: item.name,
+                    quantity: parseInt(item.quantity) || 1
+                }
+                
+                // Only include real database IDs, not temporary ones
+                if (item.id && !String(item.id).startsWith('temp-')) {
+                    cleanItem.id = parseInt(item.id)
+                }
+                
+                // If editing an existing request, include the requestId
+                if (initialData && initialData.id) {
+                    cleanItem.requestId = initialData.id
+                }
+                
+                return cleanItem
+            })
 
             // For debugging purposes, log the items we found in the form
             console.log(
@@ -223,19 +237,6 @@ function RequestAddEditForm({ onSubmit, onCancel, initialData }) {
                     .map(item => `${item.name} (${item.quantity}${item.id ? ` [ID:${item.id}]` : " [NEW]"}`)
                     .join(", ")
             )
-
-            // When editing, ensure we include any existing request items that might not be in the form
-            if (initialData && initialData.id) {
-                // Add request ID to each item to ensure proper association
-                requestItems = requestItems.map(item => ({
-                    ...item,
-                    requestId: initialData.id,
-                    // Force item.id to be a number if it exists and isn't a temporary ID
-                    ...(item.id && !item.id.toString().startsWith("temp-") ? { id: parseInt(item.id) } : {}),
-                }))
-
-                console.log("Final request items for edit:", requestItems)
-            }
 
             // Prepare request data with COMPREHENSIVE employee information
             const requestData = {
@@ -258,11 +259,15 @@ function RequestAddEditForm({ onSubmit, onCancel, initialData }) {
                     },
                 },
                 status: formData.status,
+                // CRITICAL: Include items in BOTH formats for consistency
                 requestItems: requestItems,
-                RequestItems: requestItems, // Add uppercase version to match backend expectations
+                RequestItems: [...requestItems], 
             }
 
-            console.log("Submitting request with comprehensive data:", requestData)
+            console.log("Submitting request with comprehensive data:", {
+                ...requestData, 
+                itemCount: requestItems.length
+            })
 
             let response
             let createdRequest
@@ -293,67 +298,34 @@ function RequestAddEditForm({ onSubmit, onCancel, initialData }) {
                         id: response.id,
                         // Use backend response fields if available
                         Employee: response.Employee || requestData.Employee,
-                        // CRITICAL: This ensures we have the correct items with real database IDs
-                        // Make sure to convert any string IDs to numbers for proper backend matching
-                        requestItems: (response.RequestItems || response.requestItems || requestData.requestItems).map(
-                            item => ({
-                                ...item,
-                                // Ensure ID is a number if it exists
-                                ...(item.id ? { id: parseInt(item.id) } : {}),
-                            })
-                        ),
-                        // Also include uppercase version for consistency
-                        RequestItems: (response.RequestItems || response.requestItems || requestData.requestItems).map(
-                            item => ({
-                                ...item,
-                                // Ensure ID is a number if it exists
-                                ...(item.id ? { id: parseInt(item.id) } : {}),
-                            })
-                        ),
                     }
-
-                    // If we're editing and there are no items in the response, try to retrieve them separately
-                    if (
-                        initialData?.id &&
-                        (!createdRequest.requestItems || createdRequest.requestItems.length === 0) &&
-                        requestItems.length > 0
-                    ) {
-                        console.warn("No items in response but we have items locally - fetching detailed request")
-
+                    
+                    // CRITICAL: Ensure we have the request items
+                    const responseItems = response.requestItems || response.RequestItems || []
+                    if (responseItems.length > 0) {
+                        // Use the items from response
+                        createdRequest.requestItems = [...responseItems]
+                        createdRequest.RequestItems = [...responseItems]
+                        
+                        console.log(`Using ${responseItems.length} items from response`)
+                    } else if (requestItems.length > 0) {
+                        // If response has no items, use the ones we sent
+                        createdRequest.requestItems = [...requestItems]
+                        createdRequest.RequestItems = [...requestItems]
+                        console.log(`No items in response, using ${requestItems.length} items from request`)
+                        
+                        // Attempt to fetch items directly as a final check
                         try {
-                            // Try getting the complete request to ensure we have the items
-                            const detailedRequest = await backendConnection.getRequestById(initialData.id)
-                            if (detailedRequest) {
-                                const items = detailedRequest.requestItems || detailedRequest.RequestItems || []
-                                if (items.length > 0) {
-                                    console.log(`Retrieved ${items.length} items from detailed fetch`)
-                                    createdRequest.requestItems = items.map(item => ({
-                                        ...item,
-                                        ...(item.id ? { id: parseInt(item.id) } : {}),
-                                    }))
-                                    createdRequest.RequestItems = [...createdRequest.requestItems]
-                                } else {
-                                    // If still no items from backend, use our local items as fallback
-                                    console.warn("No items found in detailed request, using local items")
-                                    createdRequest.requestItems = requestItems
-                                    createdRequest.RequestItems = requestItems
-                                }
+                            const fetchedItems = await backendConnection.getRequestItems(response.id)
+                            if (fetchedItems && fetchedItems.length > 0) {
+                                console.log(`Retrieved ${fetchedItems.length} items directly`)
+                                createdRequest.requestItems = fetchedItems
+                                createdRequest.RequestItems = fetchedItems
                             }
-                        } catch (err) {
-                            console.error("Error fetching detailed request:", err)
-                            // Use local items as fallback
-                            createdRequest.requestItems = requestItems
-                            createdRequest.RequestItems = requestItems
+                        } catch (fetchError) {
+                            console.error("Error fetching items:", fetchError)
                         }
                     }
-
-                    // Log the items in the created request to assist with debugging
-                    console.log(
-                        "Items in final request:",
-                        (createdRequest.requestItems || [])
-                            .map(item => `${item.name} (${item.quantity}${item.id ? ` [ID:${item.id}]` : ""})`)
-                            .join(", ")
-                    )
 
                     // Format employee email with role info if available
                     if (response.Employee && response.Employee.User) {
@@ -362,28 +334,17 @@ function RequestAddEditForm({ onSubmit, onCancel, initialData }) {
                         createdRequest.employeeEmail = `${user.email} (${userType})`
                     }
 
-                    // VERIFICATION: Double-check the response has proper employee info
-                    if (!response.Employee || !response.Employee.User) {
-                        console.warn("Response missing employee data - attempting repair")
-                        try {
-                            const repairedResponse = await backendConnection.repairRequest(response.id, {
-                                employeeId: selectedEmployee.id,
-                                userId: selectedEmployee.userId,
-                            })
-
-                            // Update with repaired data if available
-                            if (repairedResponse && repairedResponse.Employee) {
-                                createdRequest.Employee = repairedResponse.Employee
-                                if (repairedResponse.Employee.User) {
-                                    const user = repairedResponse.Employee.User
-                                    const userType = user.role === "Admin" ? "Admin User" : "Normal User"
-                                    createdRequest.employeeEmail = `${user.email} (${userType})`
-                                }
-                            }
-                        } catch (err) {
-                            console.error("Repair attempt failed:", err)
+                    // Log the items in the created request to assist with debugging
+                    console.log(
+                        "Final request to be returned:",
+                        {
+                            id: createdRequest.id,
+                            itemCount: (createdRequest.requestItems?.length || 0),
+                            items: (createdRequest.requestItems || [])
+                                .map(item => `${item.name} (${item.quantity}${item.id ? ` [ID:${item.id}]` : ""})`)
+                                .join(", ")
                         }
-                    }
+                    )
                 } else {
                     // No valid response, use the prepared request data
                     createdRequest = requestData
@@ -414,25 +375,10 @@ function RequestAddEditForm({ onSubmit, onCancel, initialData }) {
             }
 
             // Pass the complete request data back to the parent component
-            console.log("Returning complete request to parent:", createdRequest)
-
-            // Add a debug check to verify items are properly returned
-            if (createdRequest.requestItems && createdRequest.requestItems.length > 0) {
-                console.log(
-                    `Successfully returning ${createdRequest.requestItems.length} items to parent:`,
-                    createdRequest.requestItems.map(item => `${item.name} (${item.quantity})`).join(", ")
-                )
-            } else {
-                console.warn("WARNING: No items in the request being returned to parent!")
-
-                // If there are no items in createdRequest but there were items in the form,
-                // manually add them to ensure they're returned to the parent
-                if (requestItems && requestItems.length > 0) {
-                    console.log("Re-adding items from form data to ensure they're returned")
-                    createdRequest.requestItems = [...requestItems]
-                    createdRequest.RequestItems = [...requestItems]
-                }
-            }
+            console.log("Returning complete request to parent:", {
+                id: createdRequest.id,
+                itemCount: (createdRequest.requestItems?.length || 0)
+            })
 
             onSubmit?.(createdRequest)
             showToast("success", initialData ? "Request updated successfully!" : "Request added successfully!")

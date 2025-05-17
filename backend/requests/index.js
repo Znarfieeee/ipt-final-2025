@@ -152,6 +152,7 @@ const recentRequests = new Map();
 router.post("/", authorize(), validateRequest(createValidation), create);
 router.get("/", authorize(Role.Admin), getAll);
 router.get("/:id([0-9]+)", authorize(), getById);
+router.get("/:id([0-9]+)/items", authorize(), getItemsByRequestId);
 router.get("/employee/:employeeId([0-9]+)", authorize(), getByEmployeeId);
 router.put(
   "/:id([0-9]+)",
@@ -219,72 +220,122 @@ async function create(req, res, next) {
     }
 
     console.log(
-      `Found employee: ${employee.employeeId} with User: ${
+      `Found employee: ${employee.id} with User: ${
         employee.User ? employee.User.email : "unknown"
       }`
     );
 
-    // Prepare the request data with proper structure for nested creation
-    const requestData = {
-      type: req.body.type,
-      employeeId: employeeId, // Store the employeeId
-      EmployeeId: employeeId, // Also store capitalized version to ensure it works
-      status: req.body.status || "Pending",
-      RequestItems: req.body.requestItems || [],
-    };
+    // Get items from either field name for flexibility
+    const requestItems = req.body.requestItems || req.body.RequestItems || [];
+    console.log(`Request has ${requestItems.length} items:`, 
+      requestItems.map(item => `${item.name} (${item.quantity || 1})`).join(', '));
+    
+    // Use a single transaction for ALL database operations
+    const transaction = await db.sequelize.transaction();
+    
+    try {
+      // Prepare the request data WITHOUT items first
+      const requestData = {
+        type: req.body.type,
+        employeeId: employeeId,
+        EmployeeId: employeeId, 
+        status: req.body.status || "Pending",
+      };
 
-    // Create the request with its items
-    const request = await db.Request.create(requestData, {
-      include: [{ model: db.RequestItem }],
-    });
+      // Create the request within the transaction
+      const request = await db.Request.create(requestData, { transaction });
+      console.log(`Created request with ID ${request.id}`);
+      
+      // Format items for creation with explicit requestId
+      if (requestItems && requestItems.length > 0) {
+        const formattedItems = requestItems.map(item => ({
+          name: item.name,
+          quantity: parseInt(item.quantity) || 1,
+          requestId: request.id,
+        }));
+        
+        // Create all items at once within transaction
+        const createdItems = await db.RequestItem.bulkCreate(formattedItems, { 
+          transaction,
+          validate: true,
+          returning: true
+        });
+        
+        console.log(`Created ${createdItems.length} items for request ${request.id}`);
+      }
+      
+      // Commit the transaction ONLY if both request and items succeed
+      await transaction.commit();
+      console.log(`Transaction committed successfully for request ${request.id}`);
 
-    // Force the request to have the correct employeeId (in case it wasn't set properly)
-    await request.update({ employeeId: employeeId });
+      // Fetch the complete request with ALL associations to return to client
+      const completeRequest = await db.Request.findByPk(request.id, {
+        include: [
+          { model: db.RequestItem },
+          {
+            model: db.Employee,
+            include: [
+              {
+                model: db.User,
+                attributes: ["id", "email", "firstName", "lastName", "role"],
+              },
+            ],
+          },
+        ],
+      });
+      
+      // Double-verify that we have items by doing a separate query
+      const itemCount = await db.RequestItem.count({ where: { requestId: request.id } });
+      console.log(`Verified ${itemCount} items exist for request ${request.id}`);
+      
+      // Get the plain object to modify if needed
+      const plainRequest = completeRequest.get({ plain: true });
+      
+      // Ensure items are included with consistent format and corrected references
+      if ((!plainRequest.requestItems || plainRequest.requestItems.length === 0) && itemCount > 0) {
+        console.log(`Items missing from association, fetching directly`);
+        const finalItems = await db.RequestItem.findAll({
+          where: { requestId: request.id },
+          raw: true,
+        });
+        
+        plainRequest.requestItems = finalItems;
+        plainRequest.RequestItems = finalItems;
+        
+        console.log(`Added ${finalItems.length} items directly to response`);
+      }
 
-    // Fetch the complete request with employee data
-    const completeRequest = await db.Request.findByPk(request.id, {
-      include: [
-        { model: db.RequestItem },
-        {
-          model: db.Employee,
-          include: [
-            {
-              model: db.User,
-              attributes: ["id", "email", "firstName", "lastName", "role"],
-            },
-          ],
-        },
-      ],
-    });
+      // Store this request in the recent requests map to prevent duplicates
+      recentRequests.set(requestKey, Date.now());
 
-    // Store this request in the recent requests map to prevent duplicates
-    recentRequests.set(requestKey, Date.now());
-
-    // Clean up old entries from the recentRequests map periodically
-    if (recentRequests.size > 100) {
-      const now = Date.now();
-      for (const [key, timestamp] of recentRequests.entries()) {
-        if (now - timestamp > 60000) {
-          // Remove entries older than 1 minute
-          recentRequests.delete(key);
+      // Clean up old entries from the recentRequests map periodically
+      if (recentRequests.size > 100) {
+        const now = Date.now();
+        for (const [key, timestamp] of recentRequests.entries()) {
+          if (now - timestamp > 60000) {
+            // Remove entries older than 1 minute
+            recentRequests.delete(key);
+          }
         }
       }
-    }
 
-    // Verify the employee association was successful
-    if (!completeRequest.Employee || !completeRequest.Employee.User) {
-      console.error(
-        "Warning: Employee association failed for request",
-        request.id
-      );
+      // Verify the employee association was successful
+      if (!plainRequest.Employee || !plainRequest.Employee.User) {
+        console.error(
+          "Warning: Employee association failed for request",
+          request.id
+        );
 
-      // Add employee data manually if necessary
-      const plainRequest = completeRequest.get({ plain: true });
-      plainRequest.Employee = employee.get({ plain: true });
+        // Add employee data manually
+        plainRequest.Employee = employee.get({ plain: true });
+      }
 
       res.status(201).json(plainRequest);
-    } else {
-      res.status(201).json(completeRequest);
+    } catch (error) {
+      // Rollback transaction if anything fails
+      await transaction.rollback();
+      console.error("Error creating request or items:", error);
+      throw error; // Re-throw to be caught by outer catch
     }
   } catch (err) {
     console.error("Error creating request:", err);
@@ -294,9 +345,15 @@ async function create(req, res, next) {
 
 async function getAll(req, res, next) {
   try {
+    console.log("Getting all requests with enhanced item fetching");
+    
+    // First, get all requests with their employee data
     const requests = await db.Request.findAll({
       include: [
-        { model: db.RequestItem },
+        { 
+          model: db.RequestItem,
+          required: false // Use left join to include requests even without items
+        },
         {
           model: db.Employee,
           include: [
@@ -310,70 +367,84 @@ async function getAll(req, res, next) {
       order: [["createdAt", "DESC"]],
     });
 
-    // Enhance the response with additional employee information to ensure it's always available
-    const enhancedRequests = await Promise.all(
-      requests.map(async (request) => {
-        const plainRequest = request.get({ plain: true });
+    console.log(`Found ${requests.length} requests. Processing each to ensure items are included.`);
+    
+    // Create a deep copy to avoid sequelize issues with plain objects
+    const enhancedRequests = [];
+    
+    // Process each request to ensure it has its items
+    for (const request of requests) {
+      // Convert to plain object to work with
+      const plainRequest = request.get({ plain: true });
+      
+      // Check if the request has items through the association
+      const hasItems = plainRequest.RequestItems && plainRequest.RequestItems.length > 0;
+      console.log(`Request ${plainRequest.id}: Has ${hasItems ? plainRequest.RequestItems.length : 0} associated items`);
+      
+      // If no associated items, try direct fetch
+      if (!hasItems) {
+        console.log(`No associated items found for request ${plainRequest.id}, trying direct fetch.`);
+        
+        // Try to directly fetch items for this request
+        const items = await db.RequestItem.findAll({
+          where: { requestId: plainRequest.id },
+          raw: true
+        });
+        
+        if (items && items.length > 0) {
+          console.log(`Found ${items.length} items directly for request ${plainRequest.id}`);
+          plainRequest.requestItems = items;
+          plainRequest.RequestItems = items;
+        } else {
+          console.log(`No items found for request ${plainRequest.id}`);
+          plainRequest.requestItems = [];
+          plainRequest.RequestItems = [];
+        }
+      } else {
+        // Make sure both formats exist
+        plainRequest.requestItems = plainRequest.RequestItems;
+      }
 
-        // If the request doesn't have an associated employee, try to find it
-        if (!plainRequest.Employee || !plainRequest.Employee.User) {
-          if (plainRequest.employeeId || plainRequest.EmployeeId) {
-            const employeeId =
-              plainRequest.employeeId || plainRequest.EmployeeId;
-            console.log(
-              `Finding missing employee for request ${plainRequest.id}, employeeId: ${employeeId}`
-            );
+      // Check for employee association and repair if needed
+      if (!plainRequest.Employee || !plainRequest.Employee.User) {
+        if (plainRequest.employeeId || plainRequest.EmployeeId) {
+          const employeeId = plainRequest.employeeId || plainRequest.EmployeeId;
+          console.log(`Finding missing employee for request ${plainRequest.id}, employeeId: ${employeeId}`);
 
-            const employee = await db.Employee.findByPk(employeeId, {
-              include: [
-                {
-                  model: db.User,
-                  attributes: ["id", "email", "firstName", "lastName", "role"],
-                },
-              ],
-            });
+          const employee = await db.Employee.findByPk(employeeId, {
+            include: [
+              {
+                model: db.User,
+                attributes: ["id", "email", "firstName", "lastName", "role"],
+              },
+            ],
+          });
 
-            if (employee) {
-              plainRequest.Employee = employee.get({ plain: true });
-              console.log(
-                `Enhanced request ${plainRequest.id} with employee data: ${
-                  employee.User?.email || "unknown"
-                }`
-              );
+          if (employee) {
+            plainRequest.Employee = employee.get({ plain: true });
+            console.log(`Enhanced request ${plainRequest.id} with employee data: ${employee.User?.email || "unknown"}`);
 
-              // Also update the database to fix the association for future requests
-              try {
-                const dbRequest = await db.Request.findByPk(plainRequest.id);
-                if (dbRequest) {
-                  await dbRequest.setEmployee(employee);
-                  console.log(
-                    `Fixed association in database for request ${plainRequest.id}`
-                  );
-                }
-              } catch (associationErr) {
-                console.error(
-                  `Failed to update association in DB: ${associationErr.message}`
-                );
+            // Update the database to fix the association for future requests
+            try {
+              const dbRequest = await db.Request.findByPk(plainRequest.id);
+              if (dbRequest) {
+                await dbRequest.setEmployee(employee);
+                console.log(`Fixed association in database for request ${plainRequest.id}`);
               }
+            } catch (associationErr) {
+              console.error(`Failed to update association in DB: ${associationErr.message}`);
             }
           }
         }
-
-        return plainRequest;
-      })
-    );
-
+      }
+      
+      enhancedRequests.push(plainRequest);
+    }
+    
     // Log the results to help with debugging
-    console.log(`Found ${enhancedRequests.length} requests with employee data`);
-
-    // Count requests with valid employee data
-    const validEmployeeCount = enhancedRequests.filter(
-      (r) => r.Employee && r.Employee.User
-    ).length;
-    console.log(
-      `${validEmployeeCount} out of ${enhancedRequests.length} requests have valid employee data`
-    );
-
+    console.log(`Returning ${enhancedRequests.length} requests`);
+    console.log(`Requests with items: ${enhancedRequests.filter(r => (r.requestItems && r.requestItems.length > 0)).length}`);
+    
     res.json(enhancedRequests);
   } catch (err) {
     console.error("Error in getAll requests:", err);
@@ -385,7 +456,10 @@ async function getById(req, res, next) {
   try {
     const request = await db.Request.findByPk(req.params.id, {
       include: [
-        { model: db.RequestItem },
+        { 
+          model: db.RequestItem,
+          required: false // Use left join to include the request even without items
+        },
         {
           model: db.Employee,
           include: [
@@ -410,6 +484,43 @@ async function getById(req, res, next) {
 
     // Convert to plain object for potential enhancement
     const plainRequest = request.get({ plain: true });
+
+    // Log what we got from the database for debugging
+    console.log(`GetById for request ${plainRequest.id} items count:`, 
+      (plainRequest.requestItems?.length || 0) + 
+      (plainRequest.RequestItems?.length || 0)
+    );
+
+    // If items are missing, try to fetch them explicitly
+    if (
+      (!plainRequest.requestItems || plainRequest.requestItems.length === 0) &&
+      (!plainRequest.RequestItems || plainRequest.RequestItems.length === 0)
+    ) {
+      console.log(`No items found for request ${plainRequest.id}, trying direct fetch`);
+      
+      // Direct query for items with this request ID
+      const items = await db.RequestItem.findAll({
+        where: { requestId: plainRequest.id }
+      });
+      
+      if (items && items.length > 0) {
+        console.log(`Found ${items.length} items directly for request ${plainRequest.id}:`, 
+          items.map(i => `${i.name} (${i.quantity})`).join(', '));
+        plainRequest.requestItems = items.map(item => item.get({ plain: true }));
+        plainRequest.RequestItems = plainRequest.requestItems; // Set both formats for consistency
+      }
+    }
+
+    // Make sure both requestItems and RequestItems are set for consistency
+    if (plainRequest.requestItems && plainRequest.requestItems.length > 0) {
+      if (!plainRequest.RequestItems || plainRequest.RequestItems.length === 0) {
+        plainRequest.RequestItems = [...plainRequest.requestItems];
+      }
+    } else if (plainRequest.RequestItems && plainRequest.RequestItems.length > 0) {
+      if (!plainRequest.requestItems || plainRequest.requestItems.length === 0) {
+        plainRequest.requestItems = [...plainRequest.RequestItems];
+      }
+    }
 
     // If employee data is missing, try to find it
     if (!plainRequest.Employee || !plainRequest.Employee.User) {
@@ -552,114 +663,96 @@ async function update(req, res, next) {
       }
     }
 
+    // Save the requested items before removing them from the update data
+    const items = req.body.requestItems || req.body.RequestItems || [];
+    console.log(`Request update contains ${items.length} items`);
+    
+    // Remove items from the update data - we'll handle them separately
+    delete updateData.requestItems;
+    delete updateData.RequestItems;
+    
+    // Update the request basic info
     await request.update(updateData);
+    console.log(`Updated basic info for request ${request.id}`);
 
     // Handle request items if provided
-    if (req.body.requestItems || req.body.RequestItems) {
-      console.log("Request items provided for update, processing...");
-      const items = req.body.requestItems || req.body.RequestItems;
+    if (items.length > 0) {
+      console.log("Processing request items...");
+      
+      try {
+        // Get all existing items for this request
+        const existingItems = await db.RequestItem.findAll({
+          where: { requestId: request.id },
+          raw: true,
+        });
+        console.log(`Found ${existingItems.length} existing items`);
 
-      if (Array.isArray(items) && items.length > 0) {
-        console.log(`Found ${items.length} items to update`);
-
-        try {
-          // IMPROVED APPROACH: Only remove items that are no longer in the updated list
-          // First, get all existing items
-          const existingItems = await db.RequestItem.findAll({
-            where: { requestId: request.id },
-            raw: true,
-          });
-
-          console.log(
-            `Found ${existingItems.length} existing items for request ${request.id}`
-          );
-
-          // Prepare new items with proper request ID
-          const itemsToCreate = items.map((item) => ({
-            name: item.name,
-            quantity: parseInt(item.quantity) || 1,
-            requestId: request.id,
-            // Preserve existing ID if it exists and is not a temporary ID
-            ...(item.id && typeof item.id === "number" ? { id: item.id } : {}),
-          }));
-
-          // Items that need to be created (don't have an ID or have a temp ID)
-          const newItems = itemsToCreate.filter(
-            (item) =>
-              !item.id ||
-              (typeof item.id === "string" &&
-                item.id.toString().startsWith("temp-"))
-          );
-          console.log(`Creating ${newItems.length} new items`);
-
-          // Create all new items
-          if (newItems.length > 0) {
-            const createdItems = await db.RequestItem.bulkCreate(
-              newItems.map((item) => ({
-                name: item.name,
-                quantity: item.quantity,
-                requestId: request.id,
-              }))
-            );
-            console.log(
-              `Successfully created ${createdItems.length} new items`
-            );
+        // Format and clean the incoming items
+        const processedItems = items.map(item => ({
+          name: item.name,
+          quantity: parseInt(item.quantity) || 1,
+          requestId: request.id,
+          // Only keep real database IDs
+          ...(item.id && typeof item.id === "number" ? { id: item.id } : {})
+        }));
+        
+        // 1. HANDLE NEW ITEMS: Items without IDs
+        const newItems = processedItems.filter(item => !item.id);
+        console.log(`Creating ${newItems.length} new items`);
+        
+        if (newItems.length > 0) {
+          // Create all new items at once
+          const createdItems = await db.RequestItem.bulkCreate(newItems);
+          console.log(`Successfully created ${createdItems.length} new items:`, 
+            createdItems.map(item => `${item.name} (${item.quantity})`).join(', '));
+            
+          // Force check that all new items have the correct requestId
+          for (const item of createdItems) {
+            if (!item.requestId || item.requestId !== request.id) {
+              console.log(`Fixing requestId for item ${item.id}`);
+              await item.update({ requestId: request.id });
+            }
           }
-
-          // Update existing items that were modified
-          const itemsToUpdate = itemsToCreate.filter(
-            (item) =>
-              item.id &&
-              typeof item.id === "number" &&
-              existingItems.some((existingItem) => existingItem.id === item.id)
-          );
-
-          for (const item of itemsToUpdate) {
-            await db.RequestItem.update(
-              { name: item.name, quantity: item.quantity },
-              { where: { id: item.id, requestId: request.id } }
-            );
-          }
-
-          console.log(`Updated ${itemsToUpdate.length} existing items`);
-
-          // Delete items that were removed (exist in DB but not in the updated list)
-          const existingIds = existingItems.map((item) => item.id);
-          const updatedIds = itemsToCreate
-            .filter((item) => item.id && typeof item.id === "number")
-            .map((item) => item.id);
-
-          const idsToDelete = existingIds.filter(
-            (id) => !updatedIds.includes(id)
-          );
-
-          if (idsToDelete.length > 0) {
-            const deleteResult = await db.RequestItem.destroy({
-              where: {
-                id: idsToDelete,
-                requestId: request.id,
-              },
-            });
-            console.log(
-              `Deleted ${deleteResult} items that were removed from the request`
-            );
-          } else {
-            console.log("No items needed to be deleted");
-          }
-        } catch (itemError) {
-          console.error("Error updating request items:", itemError);
-          // Continue processing request - don't fail the whole update if items have issues
         }
-      } else {
-        console.log(
-          `No valid items found in the request body for request ${request.id}`
+
+        // 2. HANDLE UPDATES: Items with existing IDs that need to be updated
+        const existingIds = existingItems.map(item => item.id);
+        const itemsToUpdate = processedItems.filter(
+          item => item.id && existingIds.includes(item.id)
         );
+        
+        console.log(`Updating ${itemsToUpdate.length} existing items`);
+        for (const item of itemsToUpdate) {
+          await db.RequestItem.update(
+            { name: item.name, quantity: item.quantity, requestId: request.id },
+            { where: { id: item.id } }
+          );
+        }
+
+        // 3. HANDLE DELETIONS: Delete items that are in DB but not in the update request
+        const updatedIds = processedItems
+          .filter(item => item.id)
+          .map(item => item.id);
+          
+        const idsToDelete = existingIds.filter(id => !updatedIds.includes(id));
+        
+        if (idsToDelete.length > 0) {
+          const deleteResult = await db.RequestItem.destroy({
+            where: { id: idsToDelete, requestId: request.id }
+          });
+          console.log(`Deleted ${deleteResult} items that were removed from request`);
+        } else {
+          console.log("No items needed to be deleted");
+        }
+      } catch (itemError) {
+        console.error("Error updating request items:", itemError);
+        // Continue processing request - don't fail the whole update if items have issues
       }
     } else {
       console.log(`No items provided in update for request ${request.id}`);
     }
 
-    // Return the complete updated request with employee data
+    // Return the complete updated request with employee data and items
     const updatedRequest = await db.Request.findByPk(req.params.id, {
       include: [
         { model: db.RequestItem },
@@ -670,18 +763,30 @@ async function update(req, res, next) {
       ],
     });
 
-    // Log the actual items in the database after update
-    const items = await db.RequestItem.findAll({
-      where: { requestId: req.params.id },
-      raw: true,
-    });
-    console.log(
-      `Items in database after update (${items.length}):`,
-      items.map((i) => `${i.name} (${i.quantity})`).join(", ")
-    );
-
-    // If employee data is still missing, try to find it explicitly
+    // Double-check for items - if none found through association, try direct query
     const plainRequest = updatedRequest.get({ plain: true });
+    
+    const hasItems = plainRequest.RequestItems && plainRequest.RequestItems.length > 0;
+    if (!hasItems) {
+      console.log(`No items in response after update, trying direct fetch`);
+      
+      // Try to get the items directly
+      const directItems = await db.RequestItem.findAll({
+        where: { requestId: request.id },
+        raw: true
+      });
+      
+      if (directItems.length > 0) {
+        console.log(`Found ${directItems.length} items directly`);
+        plainRequest.requestItems = directItems;
+        plainRequest.RequestItems = directItems;
+      }
+    } else {
+      // Make sure both formats exist
+      plainRequest.requestItems = plainRequest.RequestItems;
+    }
+    
+    // If employee data is still missing, try to find it explicitly
     if (!plainRequest.Employee || !plainRequest.Employee.User) {
       if (updateData.employeeId || updateData.EmployeeId) {
         const employeeId = updateData.employeeId || updateData.EmployeeId;
@@ -696,10 +801,9 @@ async function update(req, res, next) {
           );
         }
       }
-      res.json(plainRequest);
-    } else {
-      res.json(updatedRequest);
     }
+    
+    res.json(plainRequest);
   } catch (err) {
     next(err);
   }
@@ -881,6 +985,87 @@ async function deleteAllRequests(req, res, next) {
     });
   } catch (err) {
     console.error("Error deleting all requests:", err);
+    next(err);
+  }
+}
+
+// Enhanced function to get items for a specific request with multiple retrieval methods
+async function getItemsByRequestId(req, res, next) {
+  try {
+    const requestId = req.params.id;
+    console.log(`Fetching items directly for request ${requestId}`);
+    
+    let items = [];
+    let foundItems = false;
+    
+    // Method 1: Direct query with requestId - most reliable
+    try {
+      const directItems = await db.RequestItem.findAll({
+        where: { requestId: requestId },
+        order: [['id', 'ASC']]
+      });
+      
+      if (directItems && directItems.length > 0) {
+        console.log(`Method 1: Found ${directItems.length} items directly for request ${requestId}`);
+        items = directItems;
+        foundItems = true;
+      }
+    } catch (e) {
+      console.error("Error in direct query method:", e);
+    }
+    
+    // Method 2: Through association - if direct method found nothing
+    if (!foundItems) {
+      try {
+        const request = await db.Request.findByPk(requestId, {
+          include: [{ model: db.RequestItem }]
+        });
+        
+        if (request && request.RequestItems && request.RequestItems.length > 0) {
+          console.log(`Method 2: Found ${request.RequestItems.length} items through association`);
+          items = request.RequestItems.map(item => item.get({ plain: true }));
+          foundItems = true;
+        }
+      } catch (e) {
+        console.error("Error in association method:", e);
+      }
+    }
+    
+    // Method 3: Raw query as last resort - bypasses all ORM limitations
+    if (!foundItems) {
+      try {
+        const [rawItems] = await db.sequelize.query(
+          `SELECT * FROM RequestItems WHERE requestId = ? ORDER BY id ASC`,
+          { 
+            replacements: [requestId],
+            type: db.Sequelize.QueryTypes.SELECT
+          }
+        );
+        
+        if (rawItems && rawItems.length > 0) {
+          console.log(`Method 3: Found ${rawItems.length} items through raw query`);
+          items = rawItems;
+          foundItems = true;
+        }
+      } catch (e) {
+        console.error("Error in raw query method:", e);
+      }
+    }
+    
+    // Log the found items count
+    if (foundItems) {
+      console.log(`Found ${items.length} items for request ${requestId}:`, 
+        items.slice(0, 5).map(i => `${i.name} (${i.quantity})`).join(", ") + 
+        (items.length > 5 ? ` and ${items.length - 5} more...` : "")
+      );
+    } else {
+      console.log(`No items found for request ${requestId} after trying all methods`);
+    }
+    
+    // Return whatever items we found (could be empty array)
+    res.json(items);
+  } catch (err) {
+    console.error(`Error fetching items for request ${req.params.id}:`, err);
     next(err);
   }
 }
