@@ -86,7 +86,7 @@ app.get("/api/test", async (req, res) => {
 app.get("/api/public/users", async (req, res) => {
   try {
     const users = await db.User.findAll({
-      attributes: ["id", "firstName", "lastName", "email", "role", "status"], // Exclude sensitive data
+      attributes: ["id", "title", "firstName", "lastName", "email", "role", "status"], // Include title
     });
 
     return res.json({
@@ -160,6 +160,7 @@ app.post(
           role: user.role,
           firstName: user.firstName,
           lastName: user.lastName,
+          title: user.title,
           employeeId: user.Employee?.id,
           position: user.Employee?.position,
         },
@@ -224,7 +225,7 @@ async function startServer() {
       db.User.findOrCreate({
         where: { email: "admin@example.com" },
         defaults: {
-          title: "Mr",
+          title: "Mr", // Explicitly set title
           firstName: "Admin",
           lastName: "User",
           email: "admin@example.com",
@@ -235,6 +236,14 @@ async function startServer() {
       }).then(([user, created]) => {
         if (created) {
           console.log("Default admin user created");
+        } else {
+          // Update existing admin to ensure title is set
+          if (!user.title) {
+            user.title = "Mr";
+            user.save().then(() => {
+              console.log("Updated default admin user with title");
+            });
+          }
         }
       });
     });

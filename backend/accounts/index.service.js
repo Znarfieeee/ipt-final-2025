@@ -92,6 +92,7 @@ async function register(params, origin) {
 
   // create user object
   const user = new db.User({
+    title: params.title,
     firstName: params.firstName,
     lastName: params.lastName,
     email: params.email,
@@ -207,7 +208,16 @@ async function create(params) {
     throw 'Email "' + params.email + '" is already registered';
   }
 
-  const account = new db.User(params);
+  // Create account with explicit fields
+  const account = new db.User({
+    title: params.title,
+    firstName: params.firstName,
+    lastName: params.lastName,
+    email: params.email,
+    role: params.role || "User",
+    status: params.status || "Active",
+  });
+  
   account.verified = Date.now();
 
   // set active by default
@@ -215,6 +225,7 @@ async function create(params) {
 
   // hash password
   account.passwordHash = await hash(params.password);
+  account.password = account.passwordHash; // For compatibility
 
   // save account
   await account.save();
@@ -304,7 +315,7 @@ function basicDetails(account) {
       email: account.email || "",
       role: account.role || "User",
       status: account.status || "Unknown",
-      title: account.title || "Mr/Ms",
+      title: account.title || "", // Return actual title value without default
     };
   } catch (error) {
     console.error("Error in basicDetails:", error);
