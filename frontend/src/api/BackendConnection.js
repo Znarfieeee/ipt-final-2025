@@ -7,6 +7,11 @@ const BASE_URL =
         : "https://ipt-final-2025-backend-3j9a.onrender.com"
 
 class BackendConnection {
+    // Helper method to get the base URL
+    getBaseUrl() {
+        return BASE_URL
+    }
+
     // Authentication
     async login(email, password) {
         try {
