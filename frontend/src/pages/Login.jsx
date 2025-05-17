@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react"
+import React, { useRef, useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { showToast } from "../util/alertHelper"
 import { USE_FAKE_BACKEND } from "../api/config"
@@ -13,6 +13,17 @@ function Login() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState("")
     const { fakeFetch } = useFakeBackend()
+
+    // Check if user is already logged in
+    useEffect(() => {
+        const token = localStorage.getItem("token")
+        const userInfo = localStorage.getItem("userInfo")
+
+        if (token && userInfo) {
+            // User is already logged in, redirect to home
+            navigate("/")
+        }
+    }, [navigate])
 
     const handleSubmit = async e => {
         e.preventDefault()
@@ -42,15 +53,46 @@ function Login() {
                     showToast("error", result.message || "Invalid credentials.")
                 }
             } else {
-                // Use the real backend through BackendConnection
-                const result = await backendConnection.login(email, password)
+                try {
+                    // Use direct fetch for more reliable login
+                    const response = await fetch(`${backendConnection.getBaseUrl()}/api/auth/login`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ email, password }),
+                        credentials: "include", // Important for cookies
+                    })
 
-                if (result) {
-                    showToast("success", "Login successful")
-                    navigate("/")
-                } else {
-                    setError("Login failed. Please check your credentials.")
-                    showToast("error", "Login failed. Please check your credentials.")
+                    if (!response.ok) {
+                        // Try to get error message
+                        let errorMessage = "Login failed"
+                        try {
+                            const errorData = await response.json()
+                            errorMessage = errorData.message || errorData.error || errorMessage
+                        } catch {
+                            errorMessage = "Server error: " + response.status
+                        }
+                        throw new Error(errorMessage)
+                    }
+
+                    const result = await response.json()
+
+                    // Store authentication info
+                    if (result.token) {
+                        localStorage.setItem("token", result.token)
+                        if (result.user) {
+                            localStorage.setItem("userInfo", JSON.stringify(result.user))
+                        }
+                        showToast("success", "Login successful")
+                        navigate("/")
+                    } else {
+                        throw new Error("Invalid response from server")
+                    }
+                } catch (loginError) {
+                    console.error("Direct login error:", loginError)
+                    setError(loginError.message)
+                    showToast("error", loginError.message)
                 }
             }
         } catch (err) {

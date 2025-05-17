@@ -1,8 +1,17 @@
 import { showToast } from "../util/alertHelper"
 
-const BASE_URL = "https://ipt-final-2025-backend-ac4y.onrender.com"
+// Hard code the production URL since the app is already deployed
+const BASE_URL =
+    window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+        ? "http://localhost:3000"
+        : "https://ipt-final-2025-backend-ac4y.onrender.com"
 
 class BackendConnection {
+    // Helper method to get the base URL
+    getBaseUrl() {
+        return BASE_URL
+    }
+
     // Authentication
     async login(email, password) {
         try {
