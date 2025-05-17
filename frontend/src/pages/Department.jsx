@@ -24,7 +24,6 @@ function Department() {
     const fetchDepartments = async () => {
         try {
             setLoading(true)
-            console.log("Fetching departments...")
 
             let data
             if (!USE_FAKE_BACKEND) {
@@ -47,7 +46,6 @@ function Department() {
                 }
             }
 
-            console.log("Departments fetched successfully:", data)
             setDepts(Array.isArray(data) ? data : [])
             setError(null)
         } catch (err) {
@@ -75,8 +73,8 @@ function Department() {
 
     const handleFormSubmit = async formData => {
         try {
-            let result;
-            
+            let result
+
             if (!USE_FAKE_BACKEND) {
                 // Use real backend
                 if (editingUser?.id) {
@@ -86,23 +84,19 @@ function Department() {
                     result = await backendConnection.createDepartment(formData)
                 }
 
-                console.log("API response:", result);
-                
                 // Immediately update the local state without waiting for a refetch
                 if (editingUser?.id) {
                     // Update existing department in the state
-                    setDepts(prevDepts => 
-                        prevDepts.map(dept => 
-                            dept.id === editingUser.id ? {...dept, ...formData} : dept
-                        )
-                    );
+                    setDepts(prevDepts =>
+                        prevDepts.map(dept => (dept.id === editingUser.id ? { ...dept, ...formData } : dept))
+                    )
                 } else if (result && result.id) {
                     // Add new department to the state
-                    setDepts(prevDepts => [...prevDepts, result]);
+                    setDepts(prevDepts => [...prevDepts, result])
                 }
-                
+
                 // Refresh the departments list to ensure data consistency
-                await fetchDepartments();
+                await fetchDepartments()
             } else {
                 // Use fake backend
                 const method = editingUser ? "PUT" : "POST"
@@ -114,7 +108,7 @@ function Department() {
                 })
 
                 if (!response.ok) {
-                    throw new Error("Failed to save department");
+                    throw new Error("Failed to save department")
                 }
 
                 const data = await response.json()
@@ -124,13 +118,11 @@ function Department() {
 
                 // Update local state immediately
                 if (editingUser) {
-                    setDepts(prevDepts => 
-                        prevDepts.map(dept => 
-                            dept.id === editingUser.id ? {...dept, ...formData} : dept
-                        )
-                    );
+                    setDepts(prevDepts =>
+                        prevDepts.map(dept => (dept.id === editingUser.id ? { ...dept, ...formData } : dept))
+                    )
                 } else if (data && data.id) {
-                    setDepts(prevDepts => [...prevDepts, data]);
+                    setDepts(prevDepts => [...prevDepts, data])
                 }
 
                 // Refresh the departments list

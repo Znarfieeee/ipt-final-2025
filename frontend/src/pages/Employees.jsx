@@ -84,9 +84,8 @@ function Employees() {
 
     const handleFormSubmit = async formData => {
         try {
-            console.log("Received form data in parent:", formData);
-            setLoading(true);
-            
+            setLoading(true)
+
             // Directly update the UI with the enriched data from the form
             const newEmployee = {
                 ...formData,
@@ -97,31 +96,25 @@ function Employees() {
                 position: formData.position || "Not specified",
                 departmentName: formData.departmentName || "Unknown",
                 hireDate: formData.hireDate || new Date().toISOString(),
-                status: formData.status || "Active"
-            };
-            
+                status: formData.status || "Active",
+            }
+
             // If editing, update the existing employee in the array
             if (editingUser?.id) {
-                setEmployees(prevEmployees => 
-                    prevEmployees.map(emp => 
-                        emp.id === editingUser.id ? newEmployee : emp
-                    )
-                );
-                console.log("Updated employee in list:", newEmployee);
+                setEmployees(prevEmployees => prevEmployees.map(emp => (emp.id === editingUser.id ? newEmployee : emp)))
             } else {
                 // Add the new employee to the list
-                setEmployees(prevEmployees => [...prevEmployees, newEmployee]);
-                console.log("Added new employee to list:", newEmployee);
+                setEmployees(prevEmployees => [...prevEmployees, newEmployee])
             }
-            
+
             // Close the form
-            setShowForm(false);
-            setEditingUser(null);
+            setShowForm(false)
+            setEditingUser(null)
         } catch (err) {
-            console.error("Error handling employee data:", err);
-            showToast("error", "Failed to process employee data");
+            console.error("Error handling employee data:", err)
+            showToast("error", "Failed to process employee data")
         } finally {
-            setLoading(false);
+            setLoading(false)
         }
     }
 
@@ -162,11 +155,8 @@ function Employees() {
         try {
             // If no employees exist, start with EMP001
             if (!employees || employees.length === 0) {
-                console.log("No employees found, starting with EMP001")
                 return "EMP001"
             }
-
-            console.log("Current employees:", employees)
 
             // Find the highest employee ID
             let maxNumber = 0
@@ -181,14 +171,10 @@ function Employees() {
                 }
             })
 
-            console.log("Max employee number found:", maxNumber)
-
             // Generate next number with a random component to avoid collisions
             const nextNumber = (maxNumber + 1).toString().padStart(3, "0")
             const newId = `EMP${nextNumber}`
 
-            console.log("Generated new employee ID:", newId)
-            
             // Verify this ID doesn't already exist (extra safety check)
             const exists = employees.some(emp => emp.employeeId === newId)
             if (exists) {
@@ -196,7 +182,7 @@ function Employees() {
                 const random = Math.floor(Math.random() * 100)
                 return `EMP${nextNumber}-${random}`
             }
-            
+
             return newId
         } catch (error) {
             console.error("Error generating employee ID:", error)
@@ -313,7 +299,7 @@ function Employees() {
                     </div>
                 </div>
                 <hr className="mb-4" />
-                
+
                 {loading && employees.length > 0 && (
                     <div className="flex justify-center my-4">
                         <div className="flex items-center space-x-2">
