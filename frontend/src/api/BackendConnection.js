@@ -1,6 +1,6 @@
 import { showToast } from "../util/alertHelper"
 
-const BASE_URL = "https://ipt-final-2025-backend-bi5o.onrender.com"
+const BASE_URL = "https://ipt-final-2025-backend-ac4y.onrender.com"
 
 class BackendConnection {
     // Authentication
