@@ -19,7 +19,7 @@ app.use(bodyParser.json())
 app.use(cookieParser())
 app.use(
     cors({
-        origin: "http://localhost:5173",
+        origin: "https://ipt-final-2025-abcede.onrender.com",
         credentials: true,
         methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allowedHeaders: ["Content-Type", "Authorization"],
@@ -30,7 +30,7 @@ app.use(
 app.options(
     "*",
     cors({
-        origin: "http://localhost:5173",
+        origin: "https://ipt-final-2025-abcede.onrender.com",
         credentials: true,
         methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allowedHeaders: ["Content-Type", "Authorization"],
