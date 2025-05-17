@@ -13,16 +13,46 @@ const { initializeDatabase, createPool } = require("./database/db")
 const app = express()
 
 // Middleware
-app.use(helmet())
+app.use(
+    helmet({
+        // Disable contentSecurityPolicy for development
+        contentSecurityPolicy: false,
+    })
+)
 app.use(bodyParser.urlencoded({ extended: false }))
 app.use(bodyParser.json())
 app.use(cookieParser())
+
+// Allow multiple origins for CORS
+const allowedOrigins = [
+    "https://ipt-final-2025-espelita.onrender.com",
+    "http://localhost:5173",
+    "http://localhost:3000",
+]
+
+// CORS middleware
 app.use(
     cors({
-        origin: "https://ipt-final-2025-espelita.onrender.com",
+        origin: function (origin, callback) {
+            // Allow requests with no origin (like mobile apps or curl requests)
+            if (!origin) return callback(null, true)
+
+            // Check if origin is allowed
+            if (allowedOrigins.indexOf(origin) === -1) {
+                return callback(null, true) // Just allow all origins for now
+            }
+            return callback(null, true)
+        },
         credentials: true,
-        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "Authorization"],
+        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        allowedHeaders: [
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+            "Origin",
+            "Accept",
+        ],
+        exposedHeaders: ["Content-Length", "Content-Type"],
     })
 )
 
@@ -30,10 +60,16 @@ app.use(
 app.options(
     "*",
     cors({
-        origin: "https://ipt-final-2025-espelita.onrender.com",
+        origin: allowedOrigins,
         credentials: true,
-        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "Authorization"],
+        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        allowedHeaders: [
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+            "Origin",
+            "Accept",
+        ],
     })
 )
 

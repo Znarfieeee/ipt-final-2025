@@ -10,11 +10,13 @@ function Login() {
     const passwordRef = useRef()
     const navigate = useNavigate()
     const [loading, setLoading] = useState(false)
+    const [error, setError] = useState("")
     const { fakeFetch } = useFakeBackend()
 
     const handleSubmit = async e => {
         e.preventDefault()
         setLoading(true)
+        setError("")
 
         try {
             const email = emailRef.current.value
@@ -35,6 +37,7 @@ function Login() {
                     showToast("success", "Login successful")
                     navigate("/")
                 } else {
+                    setError(result.message || "Invalid credentials")
                     showToast("error", result.message || "Invalid credentials.")
                 }
             } else {
@@ -45,11 +48,13 @@ function Login() {
                     showToast("success", "Login successful")
                     navigate("/")
                 } else {
+                    setError("Login failed. Please check your credentials.")
                     showToast("error", "Login failed. Please check your credentials.")
                 }
             }
         } catch (err) {
             console.error("Login error:", err)
+            setError(err.message || "Unknown error")
             showToast("error", "Login failed: " + (err.message || "Unknown error"))
         } finally {
             setLoading(false)
@@ -64,6 +69,9 @@ function Login() {
                     <p className="mt-2 text-center text-sm text-gray-600">
                         {USE_FAKE_BACKEND ? "(Using Fake Backend)" : "(Using Real Backend)"}
                     </p>
+                    {error && (
+                        <div className="mt-2 p-2 bg-red-100 border border-red-300 text-red-600 rounded">{error}</div>
+                    )}
                 </div>
                 <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
                     <div className="rounded-md shadow-sm -space-y-px">
