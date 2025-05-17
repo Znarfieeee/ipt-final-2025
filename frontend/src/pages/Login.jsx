@@ -42,8 +42,6 @@ function Login() {
                 const result = await backendConnection.login(email, password)
 
                 if (result) {
-                    // Store user info in localStorage
-                    localStorage.setItem("userInfo", JSON.stringify(result.user))
                     showToast("success", "Login successful")
                     navigate("/")
                 } else {
@@ -51,6 +49,7 @@ function Login() {
                 }
             }
         } catch (err) {
+            console.error("Login error:", err)
             showToast("error", "Login failed: " + (err.message || "Unknown error"))
         } finally {
             setLoading(false)

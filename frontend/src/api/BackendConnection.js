@@ -1,14 +1,30 @@
 import { showToast } from "../util/alertHelper"
 
-const BASE_URL = "https://ipt-final-2025-backend-o7yl.onrender.com"
+// Use window.location.hostname for dynamic backend URL determination
+const BASE_URL =
+    window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+        ? "http://localhost:3000"
+        : "https://ipt-final-2025-backend-o7yl.onrender.com"
 
 class BackendConnection {
     // Authentication
     async login(email, password) {
-        return this.fetchData("/auth/login", {
+        const result = await this.fetchData("/api/auth/login", {
             method: "POST",
             body: { email, password },
         })
+
+        if (result && result.token) {
+            // Store token
+            localStorage.setItem("token", result.token)
+
+            // Store user info
+            if (result.user) {
+                localStorage.setItem("userInfo", JSON.stringify(result.user))
+            }
+            return result
+        }
+        return null
     }
 
     async logout() {
