@@ -1,7 +1,7 @@
 const mysql = require("mysql2/promise")
 const fs = require("fs").promises
 const path = require("path")
-const config = require("../config.json")
+const config = require("../config")
 
 // Database configuration for direct MySQL connection
 const dbConfig = {
