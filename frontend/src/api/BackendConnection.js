@@ -236,7 +236,7 @@ class BackendConnection {
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
                     // Use BASE_URL instead of this.apiUrl which is undefined
-                    const response = await fetch(`${BASE_URL}/requests/${id}`, {
+                    const response = await fetch(`${BASE_URL}/api/requests/${id}`, {
                         method: "GET",
                         headers: {
                             "Content-Type": "application/json",
@@ -379,7 +379,7 @@ class BackendConnection {
             }
 
             // Use direct fetch for more reliable results
-            const response = await fetch(`${BASE_URL}/requests/${id}`, {
+            const response = await fetch(`${BASE_URL}/api/requests/${id}`, {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
@@ -630,7 +630,7 @@ class BackendConnection {
             for (let attempt = 1; attempt <= 5; attempt++) {
                 try {
                     // Use direct fetch for more reliable results
-                    const response = await fetch(`${BASE_URL}/requests/${requestId}/items`, {
+                    const response = await fetch(`${BASE_URL}/api/requests/${requestId}/items`, {
                         method: "GET",
                         headers: {
                             "Content-Type": "application/json",

@@ -174,7 +174,7 @@ function WorkflowsForm({ initialData, onCancel }) {
                                 onClick={onCancel}
                                 className="flex gap-2 items-center justify-center px-4 py-2 rounded-md bg-green-400 text-primary hover:bg-green-600 hover:text-background transition-colors"
                             >
-                                <BiArrowBack /> to Employees
+                                <BiArrowBack /> Employees
                             </button>
                         </div>
                     </div>

@@ -4,6 +4,7 @@ import { showToast } from "../util/alertHelper"
 import { USE_FAKE_BACKEND } from "../api/config"
 import useFakeBackend from "../api/fakeBackend"
 import backendConnection from "../api/BackendConnection"
+import LoadingButton from "../components/LoadingButton"
 
 function Login() {
     const emailRef = useRef()
@@ -110,15 +111,14 @@ function Login() {
                     </div>
 
                     <div>
-                        <button
+                        <LoadingButton
                             type="submit"
-                            disabled={loading}
-                            className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white ${
-                                loading ? "bg-blue-400" : "bg-blue-600 hover:bg-blue-700"
-                            } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+                            isLoading={loading}
+                            loadingText="Signing in..."
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                         >
-                            {loading ? "Signing in..." : "Sign in"}
-                        </button>
+                            Sign in
+                        </LoadingButton>
                     </div>
                 </form>
             </div>
