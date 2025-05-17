@@ -44,7 +44,7 @@ function App() {
             ],
         },
         {
-            path: "/api/auth/login",
+            path: "/login",
             element: <Login />,
         },
         {
