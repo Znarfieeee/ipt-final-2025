@@ -196,8 +196,61 @@ class BackendConnection {
         return this.fetchData("/requests")
     }
 
+    // Get a specific request by ID - with retries to handle potential item fetch issues
     async getRequestById(id) {
-        return this.fetchData(`/requests/${id}`)
+        try {
+            console.log(`Fetching detailed request by ID: ${id}`)
+
+            // Try up to 3 times to get the request with its items
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    const response = await fetch(`${this.apiUrl}/requests/${id}`, {
+                        method: "GET",
+                        headers: this.headers,
+                    })
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`)
+                    }
+
+                    const data = await response.json()
+
+                    // Check if we have request items
+                    const hasItems =
+                        (data.requestItems && data.requestItems.length > 0) ||
+                        (data.RequestItems && data.RequestItems.length > 0)
+
+                    console.log(`Request ${id} fetch attempt ${attempt}: Found ${hasItems ? "with" : "WITHOUT"} items`)
+
+                    // If we have items, return the data
+                    if (hasItems) {
+                        return data
+                    }
+
+                    // If we're on the last attempt, return what we have even without items
+                    if (attempt === 3) {
+                        console.warn(`Failed to find items for request ${id} after ${attempt} attempts`)
+                        return data
+                    }
+
+                    // Otherwise, wait briefly and try again
+                    await new Promise(resolve => setTimeout(resolve, 500))
+                    console.log(`Retrying request ${id} fetch, attempt ${attempt + 1}`)
+                } catch (fetchError) {
+                    if (attempt === 3) {
+                        throw fetchError
+                    }
+                    // Wait and retry
+                    await new Promise(resolve => setTimeout(resolve, 500))
+                    console.log(`Error in attempt ${attempt}, retrying: ${fetchError.message}`)
+                }
+            }
+
+            throw new Error(`Failed to fetch request ${id} after multiple attempts`)
+        } catch (error) {
+            console.error("Error fetching request by ID:", error)
+            throw error
+        }
     }
 
     // Track in-progress requests to prevent duplicates
@@ -262,125 +315,94 @@ class BackendConnection {
         }
     }
 
+    // Update a request
     async updateRequest(id, requestData) {
         try {
-            console.log("Updating request with ID", id, "and data:", requestData)
-
-            // Ensure we have the capitalized EmployeeId field
-            const finalData = { ...requestData }
-            if (finalData.employeeId && !finalData.EmployeeId) {
-                finalData.EmployeeId = finalData.employeeId
-            }
-
-            // CRITICAL: Ensure request items are properly included and formatted
-            // This is vital when changing status from pending to approved
-            if (requestData.requestItems || requestData.RequestItems) {
-                // Create a deep copy to prevent reference issues
-                const items = JSON.parse(JSON.stringify(requestData.requestItems || requestData.RequestItems))
-
-                if (Array.isArray(items) && items.length > 0) {
-                    // Use a standardized format to ensure proper handling by backend
-                    finalData.requestItems = items.map(item => {
-                        // Start with the basic item data
-                        const processedItem = {
-                            name: item.name,
-                            quantity: parseInt(item.quantity || 1),
-                            requestId: id, // Ensure each item has the request ID
-                        }
-
-                        // Only add real IDs (not temporary ones) to the item
-                        if (item.id && typeof item.id === "number") {
-                            processedItem.id = item.id
-                        } else if (item.id && typeof item.id === "string" && !item.id.toString().startsWith("temp-")) {
-                            // Try to convert string IDs to numbers if they're not temp IDs
-                            try {
-                                const numId = parseInt(item.id)
-                                if (!isNaN(numId)) {
-                                    processedItem.id = numId
-                                }
-                            } catch (e) {
-                                // Ignore conversion errors
-                            }
-                        }
-
-                        return processedItem
-                    })
-                    console.log(
-                        `Prepared ${finalData.requestItems.length} items for update:`,
-                        finalData.requestItems
-                            .map(i => `${i.name} (${i.quantity})${i.id ? ` ID: ${i.id}` : ""}`)
-                            .join(", ")
-                    )
-                } else {
-                    console.warn(`Request update for ID ${id} has no items!`)
-                    // Ensure we at least have an empty array to avoid null reference issues
-                    finalData.requestItems = []
-                }
-            } else {
-                console.warn(`No items found in request data for ID ${id}`)
-                finalData.requestItems = []
-            }
-
-            const response = await this.fetchData(`/requests/${id}`, {
-                method: "PUT",
-                body: finalData,
+            console.log(`Updating request ${id} with data:`, {
+                ...requestData,
+                itemCount: (requestData.requestItems?.length || 0) + (requestData.RequestItems?.length || 0),
             })
-            console.log("Update request response:", response)
 
-            // Extra verification step: If the response doesn't contain items, fetch them directly
-            if (
-                response &&
-                (!response.requestItems ||
-                    !response.RequestItems ||
-                    (response.requestItems &&
-                        response.requestItems.length === 0 &&
-                        response.RequestItems &&
-                        response.RequestItems.length === 0))
-            ) {
-                console.log("No items found in response, fetching directly from server...")
+            // Ensure we have both requestItems and RequestItems for backend compatibility
+            if (requestData.requestItems && !requestData.RequestItems) {
+                requestData.RequestItems = [...requestData.requestItems]
+            } else if (requestData.RequestItems && !requestData.requestItems) {
+                requestData.requestItems = [...requestData.RequestItems]
+            }
 
+            // Use BASE_URL instead of this.apiUrl which is undefined
+            const response = await fetch(`${BASE_URL}/requests/${id}`, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(localStorage.getItem("token")
+                        ? {
+                              Authorization: `Bearer ${localStorage.getItem("token")}`,
+                          }
+                        : {}),
+                },
+                body: JSON.stringify(requestData),
+            })
+
+            if (!response.ok) {
+                // Safely handle error response that might not be JSON
                 try {
-                    // Make a separate call to get just the request items
-                    const itemsResponse = await this.fetchData(`/requests/${id}`)
-                    if (itemsResponse && (itemsResponse.requestItems || itemsResponse.RequestItems)) {
-                        // Update the response with the fetched items
-                        response.requestItems = itemsResponse.requestItems || []
-                        response.RequestItems = itemsResponse.RequestItems || []
-                        console.log(
-                            "Successfully fetched items in separate call:",
-                            response.requestItems.map(i => `${i.name} (${i.quantity})`).join(", ")
-                        )
+                    const text = await response.text()
+                    if (text && text.trim()) {
+                        try {
+                            const errorData = JSON.parse(text)
+                            throw new Error(errorData.message || `Failed to update request: ${response.status}`)
+                        } catch (parseError) {
+                            // If JSON parsing fails, use the text response
+                            throw new Error(`Failed to update request: ${text || response.status}`)
+                        }
+                    } else {
+                        throw new Error(`Failed to update request: ${response.status}`)
                     }
-                } catch (itemErr) {
-                    console.error("Error fetching request items:", itemErr)
+                } catch (textError) {
+                    throw new Error(`Failed to update request: ${response.status}`)
                 }
             }
 
-            // Ensure the response has both versions of the request items
-            if (response) {
-                // First, make sure we have at least one version of the items
-                if (response.requestItems && !response.RequestItems) {
-                    response.RequestItems = [...response.requestItems]
-                } else if (response.RequestItems && !response.requestItems) {
-                    response.requestItems = [...response.RequestItems]
-                }
+            // Safely handle response that might not be JSON
+            try {
+                const text = await response.text()
+                if (text && text.trim()) {
+                    try {
+                        const data = JSON.parse(text)
 
-                // If we still don't have any items, create empty arrays
-                if (!response.requestItems) {
-                    response.requestItems = []
-                }
-                if (!response.RequestItems) {
-                    response.RequestItems = []
-                }
+                        // Log what came back from the backend
+                        console.log(`Update response for request ${id}:`, {
+                            success: true,
+                            hasItems: !!(data.requestItems?.length || data.RequestItems?.length),
+                            itemCount: (data.requestItems?.length || 0) + (data.RequestItems?.length || 0),
+                        })
 
-                // Log the items for debugging
-                console.log(
-                    `Response contains ${response.requestItems.length} items:`,
-                    response.requestItems.map(item => `${item.name} (${item.quantity})`).join(", ")
-                )
+                        return data
+                    } catch (parseError) {
+                        console.error("Error parsing response as JSON:", parseError)
+                        // Return the original data if parsing fails
+                        return {
+                            ...requestData,
+                            id: id,
+                        }
+                    }
+                } else {
+                    // Handle empty response
+                    console.warn("Empty response from server, returning original request data")
+                    return {
+                        ...requestData,
+                        id: id,
+                    }
+                }
+            } catch (textError) {
+                console.error("Error reading response text:", textError)
+                // Return the original data if text extraction fails
+                return {
+                    ...requestData,
+                    id: id,
+                }
             }
-
-            return response
         } catch (error) {
             console.error("Error updating request:", error)
             throw error
