@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { showToast } from "../util/alertHelper"
 import { USE_FAKE_BACKEND } from "../api/config"
 import useFakeBackend from "../api/fakeBackend"
+import backendConnection from "../api/BackendConnection"
 
 function Login() {
     const emailRef = useRef()
@@ -37,25 +38,16 @@ function Login() {
                     showToast("error", result.message || "Invalid credentials.")
                 }
             } else {
-                // Use the real backend through auth context
-                const response = await fetch("/api/auth/login", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ email, password }),
-                    credentials: "include", // Important for cookies
-                })
+                // Use the real backend through BackendConnection
+                const result = await backendConnection.login(email, password)
 
-                const result = await response.json()
-
-                if (response.ok) {
+                if (result) {
                     // Store user info in localStorage
                     localStorage.setItem("userInfo", JSON.stringify(result.user))
                     showToast("success", "Login successful")
                     navigate("/")
                 } else {
-                    showToast("error", result.message || "Invalid credentials.")
+                    showToast("error", "Login failed. Please check your credentials.")
                 }
             }
         } catch (err) {
