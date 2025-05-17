@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom"
 import { showToast } from "../util/alertHelper"
 import { USE_FAKE_BACKEND } from "../api/config"
 import useFakeBackend from "../api/fakeBackend"
-import { useAuth } from "../context/AuthContext"
 
 function Login() {
     const emailRef = useRef()
@@ -11,7 +10,6 @@ function Login() {
     const navigate = useNavigate()
     const [loading, setLoading] = useState(false)
     const { fakeFetch } = useFakeBackend()
-    const { login } = useAuth() // Use the auth context
 
     const handleSubmit = async e => {
         e.preventDefault()
@@ -36,13 +34,29 @@ function Login() {
                     showToast("success", "Login successful")
                     navigate("/")
                 } else {
-                    showToast("error", "Invalid credentials.")
+                    showToast("error", result.message || "Invalid credentials.")
                 }
             } else {
                 // Use the real backend through auth context
-                await login(email, password)
-                showToast("success", "Login successful")
-                navigate("/")
+                const response = await fetch("/api/auth/login", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ email, password }),
+                    credentials: "include", // Important for cookies
+                })
+
+                const result = await response.json()
+
+                if (response.ok) {
+                    // Store user info in localStorage
+                    localStorage.setItem("userInfo", JSON.stringify(result.user))
+                    showToast("success", "Login successful")
+                    navigate("/")
+                } else {
+                    showToast("error", result.message || "Invalid credentials.")
+                }
             }
         } catch (err) {
             showToast("error", "Login failed: " + (err.message || "Unknown error"))
