@@ -3,10 +3,12 @@ import { useFakeBackend } from "../api/fakeBackend"
 import backendConnection from "../api/BackendConnection"
 import { USE_FAKE_BACKEND } from "../api/config"
 import { showToast } from "../util/alertHelper"
+import LoadingButton from "./LoadingButton"
 
 function TransferForm({ initialData, onSubmit, onCancel }) {
     const { fakeFetch } = useFakeBackend()
     const [departments, setDepartments] = useState([])
+    const [isLoading, setIsLoading] = useState(false)
     const [formData, setFormData] = useState({
         departmentId: "",
     })
@@ -40,12 +42,20 @@ function TransferForm({ initialData, onSubmit, onCancel }) {
         }))
     }
 
-    const handleSubmit = e => {
+    const handleSubmit = async e => {
         e.preventDefault()
-        onSubmit({
-            ...formData,
-            departmentId: parseInt(formData.departmentId),
-        })
+        setIsLoading(true)
+        try {
+            await onSubmit({
+                ...formData,
+                departmentId: parseInt(formData.departmentId),
+            })
+        } catch (error) {
+            console.error("Error transferring employee:", error)
+            showToast("error", "Failed to transfer employee")
+        } finally {
+            setIsLoading(false)
+        }
     }
 
     return (
@@ -71,6 +81,7 @@ function TransferForm({ initialData, onSubmit, onCancel }) {
                                     onChange={handleChange}
                                     className="w-full p-2 rounded-md border border-input bg-background text-foreground"
                                     required
+                                    disabled={isLoading}
                                 >
                                     <option value="">Select a department</option>
                                     {departments.map(dept => (
@@ -84,16 +95,19 @@ function TransferForm({ initialData, onSubmit, onCancel }) {
                                 <button
                                     type="button"
                                     onClick={onCancel}
-                                    className="px-4 py-2 rounded-md bg-red-400 text-secondary-foreground hover:bg-red-600 hover:text-background transition-colors"
+                                    disabled={isLoading}
+                                    className="px-4 py-2 rounded-md bg-red-400 text-secondary-foreground hover:bg-red-600 hover:text-background transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
                                 >
                                     Cancel
                                 </button>
-                                <button
+                                <LoadingButton
                                     type="submit"
-                                    className="px-4 py-2 rounded-md bg-green-400 text-primary hover:bg-green-600 hover:text-background transition-colors"
+                                    isLoading={isLoading}
+                                    loadingText="Transferring..."
+                                    className="bg-green-400 text-primary hover:bg-green-600 hover:text-background"
                                 >
                                     Transfer
-                                </button>
+                                </LoadingButton>
                             </div>
                         </div>
                     </form>
