@@ -15,6 +15,10 @@ function model(sequelize) {
         revoked: { type: DataTypes.DATE },
         revokedByIp: { type: DataTypes.STRING },
         replacedByToken: { type: DataTypes.STRING },
+        accountId: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+        },
         isExpired: {
             type: DataTypes.VIRTUAL,
             get() {

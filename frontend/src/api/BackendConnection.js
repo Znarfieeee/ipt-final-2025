@@ -16,6 +16,7 @@ class BackendConnection {
     async login(email, password) {
         try {
             // Make direct fetch request for login to avoid error handling issues
+            console.log(`Using API URL: ${BASE_URL}/accounts/authenticate`)
             const response = await fetch(`${BASE_URL}/accounts/authenticate`, {
                 method: "POST",
                 headers: {
@@ -42,14 +43,26 @@ class BackendConnection {
             // Parse the JSON response
             const result = await response.json()
 
-            if (result && result.token) {
-                // Store token and user info
-                localStorage.setItem("token", result.token)
-
-                if (result.user) {
-                    localStorage.setItem("userInfo", JSON.stringify(result.user))
+            // Handle different response formats more flexibly
+            if (result) {
+                // If we have a token in the response, store it
+                if (result.token) {
+                    localStorage.setItem("token", result.token)
+                } else if (result.jwtToken) {
+                    localStorage.setItem("token", result.jwtToken)
                 }
-                return result
+
+                // Handle user info (it might be directly in result or in result.user)
+                const userInfo = result.user || result
+
+                if (userInfo) {
+                    localStorage.setItem("userInfo", JSON.stringify(userInfo))
+                }
+
+                return {
+                    token: result.token || result.jwtToken,
+                    user: userInfo,
+                }
             } else {
                 throw new Error("Invalid response from server")
             }

@@ -144,7 +144,20 @@ function authenticate(req, res, next) {
         .authenticate({ email, password, ipAddress })
         .then(({ refreshToken, ...account }) => {
             setTokenCookie(res, refreshToken)
-            return res.json(account)
+            // Make sure we send both jwtToken and token (for backward compatibility)
+            return res.json({
+                ...account,
+                token: account.jwtToken, // Add token field to match frontend expectations
+                user: {
+                    id: account.id,
+                    email: account.email,
+                    firstName: account.firstName,
+                    lastName: account.lastName,
+                    role: account.role,
+                    status: account.status,
+                    title: account.title,
+                },
+            })
         })
         .catch(next)
 }
@@ -162,7 +175,20 @@ function refreshToken(req, res, next) {
         .refreshToken({ token, ipAddress })
         .then(({ refreshToken, ...account }) => {
             setTokenCookie(res, refreshToken)
-            res.json(account)
+            // Make sure we send both jwtToken and token (for backward compatibility)
+            return res.json({
+                ...account,
+                token: account.jwtToken, // Add token field to match frontend expectations
+                user: {
+                    id: account.id,
+                    email: account.email,
+                    firstName: account.firstName,
+                    lastName: account.lastName,
+                    role: account.role,
+                    status: account.status,
+                    title: account.title,
+                },
+            })
         })
         .catch(next)
 }

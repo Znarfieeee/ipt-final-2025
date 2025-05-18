@@ -5,6 +5,7 @@ import { USE_FAKE_BACKEND } from "../api/config"
 import useFakeBackend from "../api/fakeBackend"
 import LoadingButton from "../components/LoadingButton"
 import { useAuth } from "../context/AuthContext"
+import backendConnection from "../api/BackendConnection"
 
 function Login() {
     const emailRef = useRef()
@@ -37,7 +38,7 @@ function Login() {
 
             if (USE_FAKE_BACKEND) {
                 // Use the fake backend for login
-                const response = await fakeFetch(`http://localhost:3000/api/auth/login`, {
+                const response = await fakeFetch(`http://localhost:3000/accounts/authenticate`, {
                     method: "POST",
                     body: { email, password },
                 })
@@ -55,7 +56,7 @@ function Login() {
             } else {
                 try {
                     // Use the auth context login function
-                    await login(email, password)
+                    await backendConnection.login(email, password)
                     showToast("success", "Login successful")
                     navigate("/")
                 } catch (loginError) {
