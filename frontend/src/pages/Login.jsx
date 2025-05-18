@@ -25,8 +25,8 @@ function Login() {
         const userInfo = localStorage.getItem("userInfo")
 
         if (token && userInfo) {
-            // User is already logged in, redirect to home
-            navigate("/")
+            // User is already logged in, redirect to dashboard
+            navigate("/dashboard")
         }
     }, [navigate])
 
@@ -83,7 +83,7 @@ function Login() {
                     // Use the auth context login function
                     await login(email, password)
                     showToast("success", "Login successful")
-                    navigate("/")
+                    navigate("/dashboard")
                 } else {
                     // Check if this is a verification error
                     if (isVerificationError(result.message)) {
@@ -100,7 +100,7 @@ function Login() {
                     // Use the auth context login function
                     await login(email, password)
                     showToast("success", "Login successful")
-                    navigate("/")
+                    navigate("/dashboard")
                 } catch (loginError) {
                     console.error("Direct login error:", loginError)
                     

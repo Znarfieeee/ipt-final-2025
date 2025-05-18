@@ -1,5 +1,5 @@
 import React, { useEffect } from "react"
-import { createBrowserRouter, RouterProvider } from "react-router-dom"
+import { createBrowserRouter, RouterProvider, Navigate } from "react-router-dom"
 import { AppProvider } from "./context/AppContext"
 import Login from "./pages/Login"
 import Register from "./pages/Register"
@@ -21,6 +21,30 @@ function App() {
     const router = createBrowserRouter([
         {
             path: "/",
+            element: <Navigate to="/login" replace />,
+        },
+        {
+            path: "/login",
+            element: <Login />,
+        },
+        {
+            path: "/register",
+            element: <Register />,
+        },
+        {
+            path: "/verify-email",
+            element: <VerifyEmail />,
+        },
+        {
+            path: "/forgot-password",
+            element: <ForgotPassword />,
+        },
+        {
+            path: "/reset-password",
+            element: <ResetPassword />,
+        },
+        {
+            path: "/dashboard",
             element: (
                 <ProtectedRoute>
                     <Layout />
@@ -96,26 +120,6 @@ function App() {
                     ),
                 },
             ],
-        },
-        {
-            path: "/login",
-            element: <Login />,
-        },
-        {
-            path: "/register",
-            element: <Register />,
-        },
-        {
-            path: "/verify-email",
-            element: <VerifyEmail />,
-        },
-        {
-            path: "/forgot-password",
-            element: <ForgotPassword />,
-        },
-        {
-            path: "/reset-password",
-            element: <ResetPassword />,
         },
         {
             path: "*",

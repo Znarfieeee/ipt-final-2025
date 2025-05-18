@@ -31,7 +31,7 @@ const Layout = () => {
 
     // Redirect to dashboard if authenticated and on login page
     if (api.isAuthenticated() && location.pathname === "/login") {
-        return <Navigate to="/" replace />
+        return <Navigate to="/dashboard" replace />
     }
 
     const handleLogout = async () => {
@@ -53,7 +53,7 @@ const Layout = () => {
             <nav className="bg-slate-800 px-8 py-4 shadow-md">
                 <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center">
                     <div className="mb-4 md:mb-0">
-                        <Link to="/" className="text-white text-2xl font-bold hover:text-blue-400 transition-colors">
+                        <Link to="/dashboard" className="text-white text-2xl font-bold hover:text-blue-400 transition-colors">
                             IPT FINAL 2025
                         </Link>
                     </div>
@@ -61,24 +61,24 @@ const Layout = () => {
                         {api.isAuthenticated() ? (
                             <>
                                 {isAdmin && (
-                                    <Link to="/accounts" className="text-gray-200 hover:text-blue-400 transition-colors">
+                                    <Link to="/dashboard/accounts" className="text-gray-200 hover:text-blue-400 transition-colors">
                                         Accounts
                                     </Link>
                                 )}
                                 <Link 
-                                    to={isAdmin ? "/employees/manage" : "/employees"} 
+                                    to={isAdmin ? "/dashboard/employees/manage" : "/dashboard/employees"} 
                                     className="text-gray-200 hover:text-blue-400 transition-colors"
                                 >
                                     Employees
                                 </Link>
                                 <Link 
-                                    to={isAdmin ? "/departments/manage" : "/departments"} 
+                                    to={isAdmin ? "/dashboard/departments/manage" : "/dashboard/departments"} 
                                     className="text-gray-200 hover:text-blue-400 transition-colors"
                                 >
                                     Departments
                                 </Link>
                                 <Link 
-                                    to={isAdmin ? "/requests/manage" : "/requests"} 
+                                    to={isAdmin ? "/dashboard/requests/manage" : "/dashboard/requests"} 
                                     className="text-gray-200 hover:text-blue-400 transition-colors"
                                 >
                                     Requests
@@ -93,7 +93,7 @@ const Layout = () => {
                                         <DropdownMenuLabel>My Account</DropdownMenuLabel>
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem asChild>
-                                            <Link to="/profile" className="cursor-pointer">Profile</Link>
+                                            <Link to="/dashboard/profile" className="cursor-pointer">Profile</Link>
                                         </DropdownMenuItem>
                                         <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
                                             Logout
