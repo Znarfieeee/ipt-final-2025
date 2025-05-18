@@ -6,7 +6,6 @@ import { showToast } from "../util/alertHelper";
 function Profile() {
   const { user, setUser } = useAuth();
   const [activeTab, setActiveTab] = useState("profile");
-  const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(false);
   
   // Profile form state
@@ -38,52 +37,7 @@ function Profile() {
         title: user.title || ""
       });
     }
-    
-    // Load active sessions when tab is selected
-    if (activeTab === "sessions") {
-      fetchActiveSessions();
-    }
-  }, [activeTab, user]);
-
-  const fetchActiveSessions = async () => {
-    try {
-      setLoading(true);
-      // This would need to be implemented in the backend
-      const response = await backendConnection.getActiveSessions();
-      setSessions(response || []);
-    } catch (error) {
-      showToast("error", "Failed to load active sessions: " + error.message);
-      setSessions([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogoutAllSessions = async () => {
-    try {
-      setLoading(true);
-      await backendConnection.logoutAllSessions();
-      showToast("success", "All other sessions have been logged out");
-      await fetchActiveSessions();
-    } catch (error) {
-      showToast("error", "Failed to logout sessions: " + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogoutSession = async (sessionId) => {
-    try {
-      setLoading(true);
-      await backendConnection.logoutSession(sessionId);
-      showToast("success", "Session has been logged out");
-      await fetchActiveSessions();
-    } catch (error) {
-      showToast("error", "Failed to logout session: " + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [user]);
 
   // Handle profile form changes
   const handleProfileChange = (e) => {
@@ -132,8 +86,6 @@ function Profile() {
   // Validate password form
   const validatePasswordForm = () => {
     const errors = {};
-    
-    // Current password is no longer validated since we're using a direct update approach
     
     if (!passwordForm.newPassword) {
       errors.newPassword = "New password is required";
@@ -191,7 +143,6 @@ function Profile() {
       // Set loading state for better UX
       setLoading(true);
       
-      // Note: Current password is no longer needed but we keep it for API compatibility
       await backendConnection.changePassword(
         "dummy-value-not-used", // Current password is not actually used
         passwordForm.newPassword
@@ -229,12 +180,6 @@ function Profile() {
           onClick={() => setActiveTab("password")}
         >
           Change Password
-        </button>
-        <button
-          className={`py-2 px-4 ${activeTab === "sessions" ? "border-b-2 border-blue-500 text-blue-600 font-medium" : "text-gray-500"}`}
-          onClick={() => setActiveTab("sessions")}
-        >
-          Active Sessions
         </button>
       </div>
 
@@ -365,80 +310,6 @@ function Profile() {
               </button>
             </div>
           </form>
-        </div>
-      )}
-
-      {activeTab === "sessions" && (
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">Active Sessions</h2>
-            <button
-              onClick={handleLogoutAllSessions}
-              disabled={loading || sessions.length === 0}
-              className="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50"
-            >
-              Logout All Other Sessions
-            </button>
-          </div>
-
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
-            </div>
-          ) : sessions.length === 0 ? (
-            <div className="py-4 text-center text-gray-500">
-              No other active sessions found. This is your only active session.
-            </div>
-          ) : (
-            <div className="mt-4">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Device/IP
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Login Time
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Expires
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {sessions.map((session) => (
-                    <tr key={session.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {session.device || "Unknown"} ({session.createdByIp})
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {new Date(session.created).toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {new Date(session.expires).toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <button
-                          onClick={() => handleLogoutSession(session.id)}
-                          className="text-red-600 hover:text-red-900 focus:outline-none"
-                        >
-                          Logout
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          
-          <div className="mt-6 text-sm text-gray-500">
-            <p>Note: Sessions are automatically expired after 7 days of inactivity.</p>
-            <p>If you believe your account has been compromised, change your password immediately.</p>
-          </div>
         </div>
       )}
     </div>

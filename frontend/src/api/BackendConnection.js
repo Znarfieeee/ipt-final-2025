@@ -27,16 +27,36 @@ class BackendConnection {
 
             // Handle non-OK responses
             if (!response.ok) {
-                // Try to get the error message from the response
+                // Check specifically for 401 status which might be a verification issue
+                if (response.status === 401) {
+                    // Try to parse the response body for more details
+                    try {
+                        const errorData = await response.json()
+                        const errorMsg = errorData.message || errorData.error || ""
+
+                        // Check for verification-related keywords in the error message
+                        if (
+                            errorMsg.toLowerCase().includes("not verified") ||
+                            errorMsg.toLowerCase().includes("verify") ||
+                            errorMsg.toLowerCase().includes("verification")
+                        ) {
+                            throw new Error("Please verify your email before logging in")
+                        }
+
+                        // For other 401 errors (like wrong password)
+                        throw new Error(errorMsg || "Invalid email or password")
+                    } catch (jsonError) {
+                        // If we can't parse the JSON, assume it's a verification issue
+                        // This helps ensure users get helpful messages even if the server response is unclear
+                        throw new Error("Please verify your email before logging in")
+                    }
+                }
+
+                // For other error status codes
                 let errorMsg = "Login failed"
                 try {
                     const errorData = await response.json()
                     errorMsg = errorData.message || errorData.error || errorMsg
-
-                    // Special handling for verification errors
-                    if (errorMsg.includes("not verified") || errorMsg.includes("verify your email")) {
-                        throw new Error("Email verification required: " + errorMsg)
-                    }
 
                     // Special handling for account status errors
                     if (errorMsg.includes("inactive") || errorMsg.includes("suspended")) {

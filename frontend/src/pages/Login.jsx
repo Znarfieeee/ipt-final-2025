@@ -39,6 +39,28 @@ function Login() {
         }
     }, [location, navigate])
 
+    // Helper to check if error is related to email verification
+    const isVerificationError = (errorMsg) => {
+        if (!errorMsg) return false;
+        
+        // The exact message we now use from BackendConnection.js
+        if (errorMsg === "Please verify your email before logging in") {
+            return true;
+        }
+        
+        // Also check for other verification-related keywords for safety
+        const verificationKeywords = [
+            "not verified", 
+            "verify your email", 
+            "verification", 
+            "unverified"
+        ];
+        
+        return verificationKeywords.some(keyword => 
+            errorMsg.toLowerCase().includes(keyword)
+        );
+    }
+
     const handleSubmit = async e => {
         e.preventDefault()
         setLoading(true)
@@ -63,12 +85,14 @@ function Login() {
                     showToast("success", "Login successful")
                     navigate("/")
                 } else {
-                    setError(result.message || "Invalid credentials")
-                    showToast("error", result.message || "Invalid credentials.")
-                    
-                    // Check if needs verification
-                    if (result.message && (result.message.includes("not verified") || result.message.includes("verify your email"))) {
+                    // Check if this is a verification error
+                    if (isVerificationError(result.message)) {
+                        setError("Please verify your email before logging in")
+                        showToast("error", "Please verify your email before logging in")
                         setNeedsVerification(true)
+                    } else {
+                        setError(result.message || "Invalid credentials")
+                        showToast("error", result.message || "Invalid credentials")
                     }
                 }
             } else {
@@ -79,23 +103,31 @@ function Login() {
                     navigate("/")
                 } catch (loginError) {
                     console.error("Direct login error:", loginError)
-                    setError(loginError.message)
-                    showToast("error", loginError.message)
                     
-                    // Check if needs verification
-                    if (loginError.message && (loginError.message.includes("not verified") || loginError.message.includes("verify your email"))) {
+                    // Check if this is a verification error
+                    const errorMessage = loginError.message || "Authentication failed";
+                    if (isVerificationError(errorMessage)) {
+                        setError("Please verify your email before logging in")
+                        showToast("error", "Please verify your email before logging in")
                         setNeedsVerification(true)
+                    } else {
+                        setError(errorMessage)
+                        showToast("error", errorMessage)
                     }
                 }
             }
         } catch (err) {
             console.error("Login error:", err)
-            setError(err.message || "Unknown error")
-            showToast("error", "Login failed: " + (err.message || "Unknown error"))
             
-            // Check if needs verification
-            if (err.message && (err.message.includes("not verified") || err.message.includes("verify your email"))) {
+            // Check if this is a verification error
+            const errorMessage = err.message || "Authentication failed";
+            if (isVerificationError(errorMessage)) {
+                setError("Please verify your email before logging in")
+                showToast("error", "Please verify your email before logging in")
                 setNeedsVerification(true)
+            } else {
+                setError(errorMessage)
+                showToast("error", "Login failed: " + errorMessage)
             }
         } finally {
             setLoading(false)
@@ -168,7 +200,6 @@ function Login() {
                                 ref={emailRef}
                                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                                 placeholder="Email address"
-                                defaultValue="admin@example.com" // For easy testing
                             />
                         </div>
                         <div>
@@ -184,7 +215,6 @@ function Login() {
                                 ref={passwordRef}
                                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                                 placeholder="Password"
-                                defaultValue="admin" // For easy testing
                             />
                         </div>
                     </div>
