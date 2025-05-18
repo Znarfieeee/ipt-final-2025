@@ -9,9 +9,16 @@ async function sendEmail({ to, subject, html, from = config.emailFrom }) {
         const info = await transporter.sendMail({ from, to, subject, html })
 
         console.log("Email sent successfully!")
-        console.log("Preview URL: %s", nodeMailer.getTestMessageUrl(info))
 
-        return info
+        // Get the preview URL from nodemailer (for Ethereal emails)
+        const previewUrl = nodeMailer.getTestMessageUrl(info)
+        console.log("Preview URL: %s", previewUrl)
+
+        // Return the info object with the preview URL
+        return {
+            ...info,
+            previewUrl,
+        }
     } catch (error) {
         console.error("Error sending email:", error)
         throw error

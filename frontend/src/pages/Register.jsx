@@ -15,50 +15,53 @@ function Register() {
         email: "",
         password: "",
         confirmPassword: "",
-        acceptTerms: false
+        acceptTerms: false,
     })
 
-    const handleChange = (e) => {
+    const handleChange = e => {
         const { name, value, type, checked } = e.target
         setFormData(prev => ({
             ...prev,
-            [name]: type === 'checkbox' ? checked : value
+            [name]: type === "checkbox" ? checked : value,
         }))
     }
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = async e => {
         e.preventDefault()
         setLoading(true)
         setError("")
 
         // Validate form
         if (formData.password !== formData.confirmPassword) {
-            setError("Passwords do not match")
+            showToast("error", "Passwords do not match")
             setLoading(false)
             return
         }
 
         if (!formData.acceptTerms) {
-            setError("You must accept the terms and conditions")
+            showToast("error", "You must accept the terms and conditions")
             setLoading(false)
             return
         }
 
         try {
             const result = await backendConnection.register(formData)
-            
-            showToast("success", result.message || "Registration successful! Please check your email for verification instructions.")
-            navigate("/login", { 
-                state: { 
-                    message: "Registration successful! Please check your email for verification instructions." 
-                } 
+
+            showToast(
+                "success",
+                result.message || "Registration successful! Please check your email for verification instructions."
+            )
+            navigate("/login", {
+                state: {
+                    message: "Registration successful! Please check your email for verification instructions.",
+                    verificationDetails: result.verificationDetails || null,
+                },
             })
         } catch (err) {
             console.error("Registration error:", err)
             setError(err.message || "Registration failed")
-            showToast("error", err.message || "Registration failed")
-        } finally {
             setLoading(false)
+            showToast("error", err.message || "Registration failed")
         }
     }
 
@@ -91,7 +94,7 @@ function Register() {
                                 <option value="Dr">Dr</option>
                             </select>
                         </div>
-                        
+
                         <div className="mb-4">
                             <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
                                 First Name
@@ -107,7 +110,7 @@ function Register() {
                                 placeholder="First name"
                             />
                         </div>
-                        
+
                         <div className="mb-4">
                             <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
                                 Last Name
@@ -123,7 +126,7 @@ function Register() {
                                 placeholder="Last name"
                             />
                         </div>
-                        
+
                         <div className="mb-4">
                             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                                 Email address
@@ -140,7 +143,7 @@ function Register() {
                                 placeholder="Email address"
                             />
                         </div>
-                        
+
                         <div className="mb-4">
                             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                                 Password
@@ -156,7 +159,7 @@ function Register() {
                                 placeholder="Password"
                             />
                         </div>
-                        
+
                         <div className="mb-4">
                             <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
                                 Confirm Password
@@ -213,4 +216,4 @@ function Register() {
     )
 }
 
-export default Register 
+export default Register

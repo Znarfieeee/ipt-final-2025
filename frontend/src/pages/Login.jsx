@@ -16,6 +16,7 @@ function Login() {
     const [error, setError] = useState("")
     const [message, setMessage] = useState("")
     const [needsVerification, setNeedsVerification] = useState(false)
+    const [verificationLoading, setVerificationLoading] = useState(false)
     const { fakeFetch } = useFakeBackend()
     const { login } = useAuth()
 
@@ -33,7 +34,32 @@ function Login() {
     // Check for message from registration or verification success
     useEffect(() => {
         if (location.state?.message) {
-            setMessage(location.state.message)
+            // Set verification details if available
+            if (location.state.verificationDetails) {
+                setNeedsVerification(true)
+
+                // Set message with email preview link if available
+                setMessage(
+                    <>
+                        {location.state.message}
+                        {location.state.verificationDetails?.emailPreviewUrl && (
+                            <div className="mt-2">
+                                <a
+                                    href={location.state.verificationDetails.emailPreviewUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="font-medium underline"
+                                >
+                                    View Email Preview
+                                </a>
+                            </div>
+                        )}
+                    </>
+                )
+            } else {
+                setMessage(location.state.message)
+            }
+
             // Clear the state after displaying the message
             navigate(location.pathname, { replace: true, state: {} })
         }
@@ -65,10 +91,18 @@ function Login() {
                 } else {
                     setError(result.message || "Invalid credentials")
                     showToast("error", result.message || "Invalid credentials.")
-                    
+
                     // Check if needs verification
-                    if (result.message && (result.message.includes("not verified") || result.message.includes("verify your email"))) {
+                    if (
+                        result.message &&
+                        (result.message.toLowerCase().includes("not verified") ||
+                            result.message.toLowerCase().includes("verify your email") ||
+                            result.message.toLowerCase().includes("verification") ||
+                            result.message.toLowerCase().includes("email is not verified"))
+                    ) {
                         setNeedsVerification(true)
+                        // Set a more user-friendly error message
+                        setError("Your account needs to be verified before you can log in.")
                     }
                 }
             } else {
@@ -81,10 +115,18 @@ function Login() {
                     console.error("Direct login error:", loginError)
                     setError(loginError.message)
                     showToast("error", loginError.message)
-                    
+
                     // Check if needs verification
-                    if (loginError.message && (loginError.message.includes("not verified") || loginError.message.includes("verify your email"))) {
+                    if (
+                        loginError.message &&
+                        (loginError.message.toLowerCase().includes("not verified") ||
+                            loginError.message.toLowerCase().includes("verify your email") ||
+                            loginError.message.toLowerCase().includes("verification") ||
+                            loginError.message.toLowerCase().includes("email is not verified"))
+                    ) {
                         setNeedsVerification(true)
+                        // Set a more user-friendly error message
+                        setError("Your account needs to be verified before you can log in.")
                     }
                 }
             }
@@ -92,35 +134,61 @@ function Login() {
             console.error("Login error:", err)
             setError(err.message || "Unknown error")
             showToast("error", "Login failed: " + (err.message || "Unknown error"))
-            
+
             // Check if needs verification
-            if (err.message && (err.message.includes("not verified") || err.message.includes("verify your email"))) {
+            if (
+                err.message &&
+                (err.message.toLowerCase().includes("not verified") ||
+                    err.message.toLowerCase().includes("verify your email") ||
+                    err.message.toLowerCase().includes("verification") ||
+                    err.message.toLowerCase().includes("email is not verified"))
+            ) {
                 setNeedsVerification(true)
+                // Set a more user-friendly error message
+                setError("Your account needs to be verified before you can log in.")
             }
         } finally {
             setLoading(false)
         }
     }
-    
+
     const handleResendVerification = async () => {
         if (!emailRef.current.value) {
-            setError("Please enter your email address to resend verification");
-            return;
+            setError("Please enter your email address to resend verification")
+            return
         }
-        
-        setLoading(true);
+
+        setVerificationLoading(true)
         try {
             // Call an API endpoint to resend verification email
-            await backendConnection.resendVerification(emailRef.current.value);
-            setMessage("Verification email has been resent. Please check your email.");
-            setError("");
-            setNeedsVerification(false);
-            showToast("success", "Verification email sent");
+            const result = await backendConnection.resendVerification(emailRef.current.value)
+
+            // Set success message with email preview link if available
+            setMessage(
+                <>
+                    Verification email has been resent. Please check your email for verification instructions.
+                    {result.verificationDetails?.emailPreviewUrl && (
+                        <div className="mt-2">
+                            <a
+                                href={result.verificationDetails.emailPreviewUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-medium underline"
+                            >
+                                View Email Preview
+                            </a>
+                        </div>
+                    )}
+                </>
+            )
+
+            setError("")
+            showToast("success", "Verification email sent")
         } catch (err) {
-            setError("Failed to resend verification: " + (err.message || "Unknown error"));
-            showToast("error", "Failed to resend verification");
+            setError("Failed to resend verification: " + (err.message || "Unknown error"))
+            showToast("error", "Failed to resend verification")
         } finally {
-            setLoading(false);
+            setVerificationLoading(false)
         }
     }
 
@@ -132,31 +200,39 @@ function Login() {
                     <p className="mt-2 text-center text-sm text-gray-600">
                         {USE_FAKE_BACKEND ? "(Using Fake Backend)" : "(Using Real Backend)"}
                     </p>
-                    
+
                     {message && (
-                        <div className="mt-2 p-2 bg-green-100 border border-green-300 text-green-600 rounded">{message}</div>
+                        <div className="mt-4 p-3 bg-green-100 border border-green-300 text-green-600 rounded">
+                            {message}
+                        </div>
                     )}
-                    
+
                     {error && (
-                        <div className="mt-2 p-2 bg-red-100 border border-red-300 text-red-600 rounded">
-                            {error}
-                            {needsVerification && (
-                                <div className="mt-2">
-                                    <button 
-                                        onClick={handleResendVerification}
-                                        className="text-blue-600 hover:text-blue-800 underline"
-                                    >
-                                        Resend verification email
-                                    </button>
-                                </div>
-                            )}
+                        <div className="mt-4 p-3 bg-red-100 border border-red-300 text-red-600 rounded">{error}</div>
+                    )}
+
+                    {needsVerification && (
+                        <div className="mt-4 p-4 bg-yellow-50 border border-yellow-300 text-yellow-800 rounded">
+                            <p className="font-medium mb-2">Email verification required</p>
+                            <p className="text-sm mb-3">
+                                Your account needs to be verified. Please check your email for verification
+                                instructions.
+                            </p>
+                            <LoadingButton
+                                onClick={handleResendVerification}
+                                isLoading={verificationLoading}
+                                loadingText="Sending..."
+                                className="w-full bg-yellow-500 hover:bg-yellow-600 text-white"
+                            >
+                                Resend verification email
+                            </LoadingButton>
                         </div>
                     )}
                 </div>
                 <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-                    <div className="rounded-md shadow-sm -space-y-px">
-                        <div>
-                            <label htmlFor="email" className="sr-only">
+                    <div className="rounded-md space-y-3">
+                        <div className="flex flex-col gap-px">
+                            <label htmlFor="email" className="">
                                 Email address
                             </label>
                             <input
@@ -167,12 +243,11 @@ function Login() {
                                 required
                                 ref={emailRef}
                                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                                placeholder="Email address"
-                                defaultValue="admin@example.com" // For easy testing
+                                placeholder="(admin@example.com)"
                             />
                         </div>
-                        <div>
-                            <label htmlFor="password" className="sr-only">
+                        <div className="flex flex-col gap-px">
+                            <label htmlFor="password" className="">
                                 Password
                             </label>
                             <input
@@ -183,8 +258,7 @@ function Login() {
                                 required
                                 ref={passwordRef}
                                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                                placeholder="Password"
-                                defaultValue="admin" // For easy testing
+                                placeholder="(admin)"
                             />
                         </div>
                     </div>

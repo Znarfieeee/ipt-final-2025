@@ -4,7 +4,7 @@ import { showToast } from "../util/alertHelper"
 const BASE_URL =
     window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
         ? "http://localhost:3000"
-        : "https://ipt-final-2025-backend-17bh.onrender.com"
+        : "https://ipt-final-2025-backend-o7yl.onrender.com"
 
 class BackendConnection {
     // Helper method to get the base URL
@@ -106,21 +106,43 @@ class BackendConnection {
 
     async verifyEmail(token) {
         try {
-            const response = await fetch(`${BASE_URL}/api/auth/verify-email`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ token }),
-            })
+            // Try both endpoint formats for maximum compatibility
+            try {
+                const response = await fetch(`${BASE_URL}/api/auth/verify-email`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ token }),
+                })
 
-            const data = await response.json()
+                const data = await response.json()
 
-            if (!response.ok) {
-                throw new Error(data.message || "Email verification failed")
+                if (!response.ok) {
+                    throw new Error(data.message || "Email verification failed")
+                }
+
+                return data
+            } catch (error) {
+                // If the first endpoint fails, try the accounts endpoint
+                console.warn("First verification endpoint failed, trying alternative", error)
+
+                const response = await fetch(`${BASE_URL}/accounts/verify-email`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ token }),
+                })
+
+                const data = await response.json()
+
+                if (!response.ok) {
+                    throw new Error(data.message || "Email verification failed")
+                }
+
+                return data
             }
-
-            return data
         } catch (error) {
             console.error("Email verification error:", error)
             throw error
@@ -908,21 +930,32 @@ class BackendConnection {
 
     async resendVerification(email) {
         try {
-            const response = await fetch(`${BASE_URL}/api/auth/resend-verification`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ email }),
-            })
+            // Try using the fetchData helper first for better error handling
+            try {
+                return await this.fetchData("/accounts/resend-verification", {
+                    method: "POST",
+                    body: { email },
+                })
+            } catch (fetchError) {
+                // Fall back to direct fetch if fetchData fails
+                console.warn("Falling back to direct fetch for resend verification:", fetchError)
 
-            const data = await response.json()
+                const response = await fetch(`${BASE_URL}/accounts/resend-verification`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ email }),
+                })
 
-            if (!response.ok) {
-                throw new Error(data.message || "Failed to resend verification email")
+                const data = await response.json()
+
+                if (!response.ok) {
+                    throw new Error(data.message || "Failed to resend verification email")
+                }
+
+                return data
             }
-
-            return data
         } catch (error) {
             console.error("Resend verification error:", error)
             throw error
