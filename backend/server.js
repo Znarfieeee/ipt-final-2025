@@ -219,8 +219,8 @@ app.post(
     }
 )
 
-// Token validation endpoint
-app.get("/api/auth/validate-token", async (req, res) => {
+// Token validation endpoint - keep for backward compatibility
+app.get("/api/accounts/validate-token", async (req, res) => {
     const token = req.cookies.token || req.headers.authorization?.split(" ")[1]
 
     if (!token) {
@@ -274,6 +274,7 @@ app.get("/api/auth/validate-token", async (req, res) => {
             },
             refreshed: !!refreshedToken,
             exp: decoded.exp,
+            token: refreshedToken || token,
         })
     } catch (error) {
         return res.status(401).json({
@@ -284,18 +285,87 @@ app.get("/api/auth/validate-token", async (req, res) => {
     }
 })
 
-// Logout route
+// Additional version without /api prefix
+app.get("/accounts/validate-token", async (req, res) => {
+    const token = req.cookies.token || req.headers.authorization?.split(" ")[1]
+
+    if (!token) {
+        return res.status(401).json({
+            valid: false,
+            message: "No token provided",
+        })
+    }
+
+    try {
+        const decoded = jwt.verify(
+            token,
+            process.env.JWT_SECRET || "sample-key"
+        )
+
+        // Check if token is about to expire (less than 1 hour left)
+        const currentTime = Math.floor(Date.now() / 1000)
+        const timeRemaining = decoded.exp - currentTime
+
+        let refreshedToken = null
+
+        // If token is close to expiration (less than 1 hour), refresh it
+        if (timeRemaining < 3600) {
+            refreshedToken = jwt.sign(
+                {
+                    id: decoded.id,
+                    email: decoded.email,
+                    role: decoded.role,
+                    employeeId: decoded.employeeId,
+                },
+                process.env.JWT_SECRET || "sample-key",
+                { expiresIn: "24h" }
+            )
+
+            // Set the new token in cookies
+            res.cookie("token", refreshedToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: "strict",
+                maxAge: 24 * 60 * 60 * 1000, // 24 hours
+            })
+        }
+
+        return res.json({
+            valid: true,
+            user: {
+                id: decoded.id,
+                email: decoded.email,
+                role: decoded.role,
+                employeeId: decoded.employeeId,
+            },
+            refreshed: !!refreshedToken,
+            exp: decoded.exp,
+            token: refreshedToken || token,
+        })
+    } catch (error) {
+        return res.status(401).json({
+            valid: false,
+            message: "Invalid or expired token",
+            error: error.message,
+        })
+    }
+})
+
+// Logout route - keeping for backwards compatibility
 app.post("/api/auth/logout", (req, res) => {
     res.clearCookie("token")
     res.json({ message: "Logged out successfully" })
 })
 
 // Protected API routes
-app.use("/api/auth", require("./accounts/index.controller"))
+app.use("/api/accounts", require("./accounts/index.controller"))
 app.use("/api/departments", authenticateToken, require("./departments"))
 app.use("/api/employees", authenticateToken, require("./employees"))
 app.use("/api/requests", authenticateToken, require("./requests"))
 app.use("/api/workflows", authenticateToken, require("./workflows"))
+
+// Add non-API versions for compatibility
+app.use("/accounts", require("./accounts/index.controller"))
 
 // Error handler
 app.use((err, req, res, next) => {

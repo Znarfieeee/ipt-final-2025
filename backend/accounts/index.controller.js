@@ -47,21 +47,27 @@ const updateValidation = [
 ]
 
 // Routes
-router.post("/login", validateRequest(loginValidation), authenticate)
+router.post("/authenticate", validateRequest(loginValidation), authenticate)
 router.post("/register", validateRequest(registerValidation), register)
+router.post("/verify-email", validateResetTokenSchema, verifyEmail)
+router.post("/refresh-token", refreshToken)
+router.post("/revoke-token", authorize(), revokeTokenSchema, revokeToken)
 router.get("/", authorize(Role.Admin), getAll)
 router.get("/:id", authorize(), getById)
+router.put("/:id", authorize(), updateValidation, update)
+router.put("/:id/toggle-status", authorize(Role.Admin), toggleActiveStatus)
+router.delete("/:id", authorize(), _delete)
+
+// Additional routes for backward compatibility
+router.post("/login", validateRequest(loginValidation), authenticate)
 router.post(
     "/",
     authorize(Role.Admin),
     validateRequest(registerValidation),
     create
 )
-router.put("/:id", authorize(), updateValidation, update)
-router.put("/:id/toggle-status", authorize(Role.Admin), toggleActiveStatus)
-router.delete("/:id", authorize(), _delete)
 
-// Additional users routes to match frontend expectations
+// Additional users routes to match frontend expectations - keeping for compatibility
 router.get("/users", authorize(Role.Admin), getAll)
 router.get("/users/:id", authorize(), getById)
 router.post(
@@ -144,8 +150,14 @@ function authenticate(req, res, next) {
 }
 
 function refreshToken(req, res, next) {
-    const token = req.cookies.refreshToken
+    // Get token from request body or cookie
+    const token = req.body.token || req.cookies.refreshToken
     const ipAddress = req.ip
+
+    if (!token) {
+        return res.status(400).json({ message: "Refresh token is required" })
+    }
+
     accountService
         .refreshToken({ token, ipAddress })
         .then(({ refreshToken, ...account }) => {
@@ -364,4 +376,12 @@ function setTokenCookie(res, token) {
         expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     }
     res.cookie("refreshToken", token, cookieOptions)
+}
+
+// Function to handle email verification
+function verifyEmail(req, res, next) {
+    accountService
+        .verifyEmail(req.body.token)
+        .then(() => res.json({ message: "Email verification successful" }))
+        .catch(next)
 }

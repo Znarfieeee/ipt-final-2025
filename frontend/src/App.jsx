@@ -70,20 +70,28 @@ function App() {
         const validateTokenInterval = setInterval(async () => {
             if (localStorage.getItem("token")) {
                 try {
+                    // Use the validateToken method which now handles all the error cases
                     const result = await backendConnection.validateToken()
 
                     // If token validation explicitly returns invalid status
-                    if (result && result.valid === false) {
+                    if (!result || result.valid === false) {
                         console.log("Token validation failed, redirecting to login")
+
+                        // Clean up any authentication data
                         localStorage.removeItem("token")
                         localStorage.removeItem("userInfo")
+
+                        // Force navigation to login page
                         window.location.href = "/login"
                     }
                 } catch (error) {
                     console.error("Token validation error:", error)
-                    // Explicitly redirect on token validation error
+
+                    // Clean up any authentication data
                     localStorage.removeItem("token")
                     localStorage.removeItem("userInfo")
+
+                    // Force navigation to login page
                     window.location.href = "/login"
                 }
             }

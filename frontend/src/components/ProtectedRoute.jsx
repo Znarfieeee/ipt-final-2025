@@ -12,13 +12,25 @@ const ProtectedRoute = ({ children }) => {
 
     // Validate token on route access
     useEffect(() => {
-        // Only check if we think we're authenticated
-        if (isAuthenticated() && localStorage.getItem("token")) {
-            // Validate token without blocking the render
-            validateToken().catch(() => {
-                // Error handling is done in validateToken method
-            })
+        const validateAuth = async () => {
+            // Only check if we think we're authenticated
+            if (isAuthenticated() && localStorage.getItem("token")) {
+                try {
+                    // Validate token explicitly
+                    const isValid = await validateToken()
+
+                    // If token is invalid, the validateToken method already
+                    // triggered the auth:error event which App.jsx is listening for
+                    if (!isValid) {
+                        console.log("Token validation failed in ProtectedRoute")
+                    }
+                } catch (error) {
+                    console.error("Token validation error in ProtectedRoute:", error)
+                }
+            }
         }
+
+        validateAuth()
     }, [validateToken, isAuthenticated])
 
     // Show loading state while checking authentication

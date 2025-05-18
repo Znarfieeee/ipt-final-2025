@@ -16,7 +16,7 @@ class BackendConnection {
     async login(email, password) {
         try {
             // Make direct fetch request for login to avoid error handling issues
-            const response = await fetch(`${BASE_URL}/api/auth/login`, {
+            const response = await fetch(`${BASE_URL}/api/accounts/authenticate`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -61,92 +61,76 @@ class BackendConnection {
 
     async logout() {
         try {
-            // Call the logout endpoint
-            await this.fetchData("/api/auth/logout", {
+            // Call the revoke token endpoint
+            await this.fetchData("/accounts/revoke-token", {
                 method: "POST",
+                body: { token: localStorage.getItem("refreshToken") || localStorage.getItem("token") },
             })
         } catch (error) {
             console.error("Logout error:", error)
         } finally {
             // Always remove token from localStorage even if API call fails
             localStorage.removeItem("token")
+            localStorage.removeItem("refreshToken")
             localStorage.removeItem("userInfo")
         }
     }
 
-    // Users - Using auth endpoint for user management
+    // Register new user
+    async register(userData) {
+        return this.fetchData("/accounts/register", {
+            method: "POST",
+            body: userData,
+        })
+    }
+
+    // Verify email
+    async verifyEmail(token) {
+        return this.fetchData("/accounts/verify-email", {
+            method: "POST",
+            body: { token },
+        })
+    }
+
+    // Users management
     async getUsers() {
-        // Try public endpoint first for development
         try {
-            const data = await this.fetchData("/public/users")
-            if (data && data.users) {
-                return data.users
-            }
-        } catch {
-            // Fall back to authorized endpoints
+            return await this.fetchData("/accounts")
+        } catch (error) {
+            console.error("Failed to fetch users:", error)
+
+            // Return fallback data if needed
+            const fallbackUsers = [
+                {
+                    id: 1,
+                    firstName: "Admin",
+                    lastName: "User",
+                    email: "admin@example.com",
+                    role: "Admin",
+                    status: "Active",
+                },
+            ]
+
+            showToast("warning", "Using offline user data. Some features may be limited.")
+            return fallbackUsers
         }
-
-        // Try authorized endpoints if public one fails
-        const endpoints = ["/auth/users", "/auth/accounts", "/auth", "/test-users"]
-
-        for (const endpoint of endpoints) {
-            try {
-                const data = await this.fetchData(endpoint)
-                if (data) {
-                    return data
-                }
-            } catch {
-                // Continue to next endpoint if this one fails
-                continue
-            }
-        }
-
-        const fallbackUsers = [
-            {
-                id: 1,
-                firstName: "Admin",
-                lastName: "User",
-                email: "admin@example.com",
-                role: "Admin",
-                status: "Active",
-            },
-        ]
-
-        // Show toast but return fallback data
-        showToast("warning", "Using offline user data. Some features may be limited.")
-        return fallbackUsers
     }
 
     async getUserById(id) {
-        return this.fetchData(`/auth/users/${id}`)
+        return this.fetchData(`/accounts/${id}`)
     }
 
     async createUser(userData) {
-        return this.fetchData("/auth/users", {
+        return this.fetchData("/accounts/register", {
             method: "POST",
-            body: {
-                firstName: userData.firstName,
-                lastName: userData.lastName,
-                email: userData.email,
-                password: userData.password,
-                role: userData.role,
-                status: userData.status,
-                title: userData.title,
-            },
+            body: userData,
         })
     }
 
     async updateUser(id, userData) {
-        return this.fetchData(`/auth/users/${id}`, {
+        return this.fetchData(`/accounts/${id}`, {
             method: "PUT",
-            body: {
-                firstName: userData.firstName,
-                lastName: userData.lastName,
-                email: userData.email,
-                role: userData.role,
-                status: userData.status,
-                title: userData.title,
-            },
+            body: userData,
         })
     }
 
@@ -236,122 +220,111 @@ class BackendConnection {
 
     // Get a specific request by ID - with retries to handle potential item fetch issues
     async getRequestById(id) {
-        try {
-            // Try up to 3 times to get the request with its items
-            for (let attempt = 1; attempt <= 3; attempt++) {
-                try {
-                    // Use BASE_URL instead of this.apiUrl which is undefined
-                    const response = await fetch(`${BASE_URL}/api/requests/${id}`, {
-                        method: "GET",
-                        headers: {
-                            "Content-Type": "application/json",
-                            ...(localStorage.getItem("token")
-                                ? {
-                                      Authorization: `Bearer ${localStorage.getItem("token")}`,
-                                  }
-                                : {}),
-                        },
-                    })
+        // Try up to 3 times to get the request with its items
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                // Use BASE_URL instead of this.apiUrl which is undefined
+                const response = await fetch(`${BASE_URL}/api/requests/${id}`, {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(localStorage.getItem("token")
+                            ? {
+                                  Authorization: `Bearer ${localStorage.getItem("token")}`,
+                              }
+                            : {}),
+                    },
+                })
 
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! Status: ${response.status}`)
-                    }
-
-                    const data = await response.json()
-
-                    // Check if we have request items
-                    const hasItems =
-                        (data.requestItems && data.requestItems.length > 0) ||
-                        (data.RequestItems && data.RequestItems.length > 0)
-
-                    // If we have items, return the data
-                    if (hasItems) {
-                        // Ensure we have items in both formats for consistency
-                        if (
-                            data.requestItems &&
-                            data.requestItems.length > 0 &&
-                            (!data.RequestItems || data.RequestItems.length === 0)
-                        ) {
-                            data.RequestItems = [...data.requestItems]
-                        } else if (
-                            data.RequestItems &&
-                            data.RequestItems.length > 0 &&
-                            (!data.requestItems || data.requestItems.length === 0)
-                        ) {
-                            data.requestItems = [...data.RequestItems]
-                        }
-                        return data
-                    }
-
-                    // If we're on the last attempt, return what we have even without items
-                    if (attempt === 3) {
-                        return data
-                    }
-
-                    // Otherwise, wait briefly and try again
-                    await new Promise(resolve => setTimeout(resolve, 500))
-                } catch (fetchError) {
-                    if (attempt === 3) {
-                        throw fetchError
-                    }
-                    // Wait and retry
-                    await new Promise(resolve => setTimeout(resolve, 500))
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`)
                 }
-            }
 
-            throw new Error(`Failed to fetch request ${id} after multiple attempts`)
-        } catch (error) {
-            throw error
+                const data = await response.json()
+
+                // Check if we have request items
+                const hasItems =
+                    (data.requestItems && data.requestItems.length > 0) ||
+                    (data.RequestItems && data.RequestItems.length > 0)
+
+                // If we have items, return the data
+                if (hasItems) {
+                    // Ensure we have items in both formats for consistency
+                    if (
+                        data.requestItems &&
+                        data.requestItems.length > 0 &&
+                        (!data.RequestItems || data.RequestItems.length === 0)
+                    ) {
+                        data.RequestItems = [...data.requestItems]
+                    } else if (
+                        data.RequestItems &&
+                        data.RequestItems.length > 0 &&
+                        (!data.requestItems || data.requestItems.length === 0)
+                    ) {
+                        data.requestItems = [...data.RequestItems]
+                    }
+                    return data
+                }
+
+                // If we're on the last attempt, return what we have even without items
+                if (attempt === 3) {
+                    return data
+                }
+
+                // Otherwise, wait briefly and try again
+                await new Promise(resolve => setTimeout(resolve, 500))
+            } catch (fetchError) {
+                if (attempt === 3) {
+                    throw fetchError
+                }
+                // Wait and retry
+                await new Promise(resolve => setTimeout(resolve, 500))
+            }
         }
+
+        throw new Error(`Failed to fetch request ${id} after multiple attempts`)
     }
 
     // Track in-progress requests to prevent duplicates
     _pendingRequests = new Set()
 
     async createRequest(requestData) {
+        const requestKey = `create_${requestData.type}_${
+            requestData.employeeId || requestData.EmployeeId
+        }_${Date.now()}`
+
+        // Check if this exact request is already being processed
+        if (this._pendingRequests.has(requestKey)) {
+            return null
+        }
+
+        // Mark this request as in progress
+        this._pendingRequests.add(requestKey)
+
         try {
-            const requestKey = `create_${requestData.type}_${
-                requestData.employeeId || requestData.EmployeeId
-            }_${Date.now()}`
-
-            // Check if this exact request is already being processed
-            if (this._pendingRequests.has(requestKey)) {
-                return null
-            }
-
-            // Mark this request as in progress
-            this._pendingRequests.add(requestKey)
-
             // IMPORTANT FIX: Clean & format request items before sending
             const cleanedData = this._cleanRequestItems(requestData)
 
-            try {
-                const response = await this.fetchData("/requests", {
-                    method: "POST",
-                    body: cleanedData,
-                })
-                return response
-            } catch (error) {
-                // Special handling for duplicate request errors (409 status)
-                if (error.status === 409 && error.response?.duplicateDetected) {
-                    // Return a special object to indicate a duplicate was detected
-                    return {
-                        duplicateDetected: true,
-                        message: error.response.message,
-                        success: false,
-                    }
-                }
-                // Re-throw other errors
-                throw error
-            }
+            const response = await this.fetchData("/requests", {
+                method: "POST",
+                body: cleanedData,
+            })
+            return response
         } catch (error) {
+            // Special handling for duplicate request errors (409 status)
+            if (error.status === 409 && error.response?.duplicateDetected) {
+                // Return a special object to indicate a duplicate was detected
+                return {
+                    duplicateDetected: true,
+                    message: error.response.message,
+                    success: false,
+                }
+            }
+            // Re-throw other errors
             throw error
         } finally {
             // Clear the pending request marker after a short delay
             // to prevent immediate re-submission
-            const requestKey = `create_${requestData.type}_${
-                requestData.employeeId || requestData.EmployeeId
-            }_${Date.now()}`
             setTimeout(() => {
                 this._pendingRequests.delete(requestKey)
             }, 2000)
@@ -360,29 +333,29 @@ class BackendConnection {
 
     // Update a request
     async updateRequest(id, requestData) {
+        // Save the original request items for verification
+        const originalItems = (requestData.requestItems || requestData.RequestItems || []).map(item => ({
+            ...item,
+            name: item.name,
+            quantity: parseInt(item.quantity) || 1,
+        }))
+
+        // Prepare request items for backend - ensure they're properly formatted
+        const requestItems = originalItems.map(item => ({
+            name: item.name,
+            quantity: parseInt(item.quantity) || 1,
+            // Only include real database IDs, not temporary IDs
+            ...(item.id && !String(item.id).startsWith("temp-") ? { id: parseInt(item.id) } : {}),
+        }))
+
+        // Create a clean copy of the request data with both formats of items
+        const cleanedData = {
+            ...requestData,
+            requestItems: requestItems,
+            RequestItems: requestItems,
+        }
+
         try {
-            // Save the original request items for verification
-            const originalItems = (requestData.requestItems || requestData.RequestItems || []).map(item => ({
-                ...item,
-                name: item.name,
-                quantity: parseInt(item.quantity) || 1,
-            }))
-
-            // Prepare request items for backend - ensure they're properly formatted
-            const requestItems = originalItems.map(item => ({
-                name: item.name,
-                quantity: parseInt(item.quantity) || 1,
-                // Only include real database IDs, not temporary IDs
-                ...(item.id && !String(item.id).startsWith("temp-") ? { id: parseInt(item.id) } : {}),
-            }))
-
-            // Create a clean copy of the request data with both formats of items
-            const cleanedData = {
-                ...requestData,
-                requestItems: requestItems,
-                RequestItems: requestItems,
-            }
-
             // Use direct fetch for more reliable results
             const response = await fetch(`${BASE_URL}/api/requests/${id}`, {
                 method: "PUT",
@@ -406,7 +379,7 @@ class BackendConnection {
             let responseData
             try {
                 responseData = await response.json()
-            } catch {
+            } catch (_) {
                 // If parse fails, create a basic response
                 responseData = { id, ...cleanedData }
             }
@@ -430,7 +403,7 @@ class BackendConnection {
                         responseData.requestItems = originalItems
                         responseData.RequestItems = originalItems
                     }
-                } catch {
+                } catch (_) {
                     // Use original items as fallback
                     responseData.requestItems = originalItems
                     responseData.RequestItems = originalItems
@@ -514,21 +487,77 @@ class BackendConnection {
     // Add method to validate token
     async validateToken() {
         try {
-            return await this.fetchData("/auth/validate-token", {
-                method: "GET",
+            const refreshToken = localStorage.getItem("refreshToken") || localStorage.getItem("token")
+
+            if (!refreshToken) {
+                return { valid: false, error: "No token available" }
+            }
+
+            const result = await this.fetchData("/accounts/refresh-token", {
+                method: "POST",
+                body: { token: refreshToken },
                 skipAuthRedirect: true, // Skip automatic redirect to handle it in the auth context
             })
+
+            // If we get a new token, update localStorage
+            if (result && result.token) {
+                localStorage.setItem("token", result.token)
+
+                // Also store the refresh token if provided
+                if (result.refreshToken) {
+                    localStorage.setItem("refreshToken", result.refreshToken)
+                }
+
+                return { valid: true, user: result.user || null }
+            }
+
+            // If result exists but no new token, check if it's explicitly invalid
+            if (result && result.valid === false) {
+                // Clear authentication data
+                localStorage.removeItem("token")
+                localStorage.removeItem("refreshToken")
+                localStorage.removeItem("userInfo")
+
+                // Dispatch auth error event
+                const authErrorEvent = new CustomEvent("auth:error", {
+                    detail: { status: 401, message: "Token validation failed" },
+                })
+                window.dispatchEvent(authErrorEvent)
+
+                // Return validation status
+                return { valid: false, error: result.message || "Invalid token" }
+            }
+
+            // Default success if we got a result but no token (unlikely case)
+            return { valid: true }
         } catch (error) {
             console.error("Token validation error:", error)
+
+            // Clear authentication data
+            localStorage.removeItem("token")
+            localStorage.removeItem("refreshToken")
+            localStorage.removeItem("userInfo")
+
+            // Dispatch auth error event
+            const authErrorEvent = new CustomEvent("auth:error", {
+                detail: { status: 0, message: "Token validation error" },
+            })
+            window.dispatchEvent(authErrorEvent)
+
             return { valid: false, error: error.message }
         }
     }
 
     // Helper method for making API requests
     async fetchData(endpoint, options = {}) {
-        // Ensure endpoint starts with /api if it's not already there
+        // Handle endpoints properly
         if (!endpoint.startsWith("/api") && !endpoint.startsWith("http")) {
-            endpoint = `/api${endpoint}`
+            // For account-related endpoints
+            if (endpoint.startsWith("/accounts")) {
+                endpoint = `/api${endpoint}`
+            } else if (!endpoint.startsWith("/api")) {
+                endpoint = `/api${endpoint}`
+            }
         }
 
         const url = endpoint.startsWith("http") ? endpoint : `${BASE_URL}${endpoint}`
@@ -560,15 +589,15 @@ class BackendConnection {
             if ((response.status === 401 || response.status === 403) && !options.skipAuthRedirect) {
                 console.warn(`Authentication error (${response.status}) - redirecting to login`)
 
+                // Clear authentication data
+                localStorage.removeItem("token")
+                localStorage.removeItem("userInfo")
+
                 // Dispatch a custom event that can be listened to by other components
                 const authErrorEvent = new CustomEvent("auth:error", {
                     detail: { status: response.status, message: "Authentication failed" },
                 })
                 window.dispatchEvent(authErrorEvent)
-
-                // Clear authentication data
-                localStorage.removeItem("token")
-                localStorage.removeItem("userInfo")
 
                 // Redirect to login page
                 window.location.href = "/login"
@@ -682,7 +711,7 @@ class BackendConnection {
                     if (items && items.length > 0) {
                         try {
                             localStorage.setItem(`request_${requestId}_items`, JSON.stringify(items))
-                        } catch {
+                        } catch (_) {
                             // Silently fail if localStorage fails
                         }
                         return items
@@ -700,10 +729,9 @@ class BackendConnection {
                         try {
                             const cachedItems = localStorage.getItem(`request_${requestId}_items`)
                             if (cachedItems) {
-                                const parsedItems = JSON.parse(cachedItems)
-                                return parsedItems
+                                return JSON.parse(cachedItems)
                             }
-                        } catch {
+                        } catch (_) {
                             // Silently fail if localStorage retrieval fails
                         }
                         throw error // Re-throw on final failure
@@ -715,16 +743,15 @@ class BackendConnection {
             try {
                 const cachedItems = localStorage.getItem(`request_${requestId}_items`)
                 if (cachedItems) {
-                    const parsedItems = JSON.parse(cachedItems)
-                    return parsedItems
+                    return JSON.parse(cachedItems)
                 }
-            } catch {
+            } catch (_) {
                 // Silently fail if localStorage retrieval fails
             }
 
             // If all attempts returned empty arrays but no errors, return empty array
             return []
-        } catch (error) {
+        } catch (_) {
             return [] // Return empty array on error
         }
     }
