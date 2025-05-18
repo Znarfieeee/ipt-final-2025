@@ -1,5 +1,5 @@
-import React, { useRef, useState } from "react"
-import { useNavigate } from "react-router-dom"
+import React, { useRef, useState, useEffect } from "react"
+import { Link, useNavigate, useLocation } from "react-router-dom"
 import { showToast } from "../util/alertHelper"
 import { USE_FAKE_BACKEND } from "../api/config"
 import useFakeBackend from "../api/fakeBackend"
@@ -10,9 +10,20 @@ function Login() {
     const emailRef = useRef()
     const passwordRef = useRef()
     const navigate = useNavigate()
+    const location = useLocation()
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState("")
+    const [message, setMessage] = useState("")
     const { fakeFetch } = useFakeBackend()
+
+    // Check for message from registration or verification success
+    useEffect(() => {
+        if (location.state?.message) {
+            setMessage(location.state.message)
+            // Clear the state after displaying the message
+            navigate(location.pathname, { replace: true, state: {} })
+        }
+    }, [location, navigate])
 
     const handleSubmit = async e => {
         e.preventDefault()
@@ -70,6 +81,11 @@ function Login() {
                     <p className="mt-2 text-center text-sm text-gray-600">
                         {USE_FAKE_BACKEND ? "(Using Fake Backend)" : "(Using Real Backend)"}
                     </p>
+                    
+                    {message && (
+                        <div className="mt-2 p-2 bg-green-100 border border-green-300 text-green-600 rounded">{message}</div>
+                    )}
+                    
                     {error && (
                         <div className="mt-2 p-2 bg-red-100 border border-red-300 text-red-600 rounded">{error}</div>
                     )}
@@ -110,6 +126,14 @@ function Login() {
                         </div>
                     </div>
 
+                    <div className="flex items-center justify-between">
+                        <div className="text-sm">
+                            <Link to="/forgot-password" className="font-medium text-blue-600 hover:text-blue-500">
+                                Forgot your password?
+                            </Link>
+                        </div>
+                    </div>
+
                     <div>
                         <LoadingButton
                             type="submit"
@@ -121,6 +145,15 @@ function Login() {
                         </LoadingButton>
                     </div>
                 </form>
+
+                <div className="text-center">
+                    <p className="text-sm text-gray-600">
+                        Don't have an account?{" "}
+                        <Link to="/register" className="font-medium text-blue-600 hover:text-blue-500">
+                            Register
+                        </Link>
+                    </p>
+                </div>
             </div>
         </div>
     )

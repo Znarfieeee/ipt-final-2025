@@ -54,6 +54,98 @@ class BackendConnection {
         }
     }
 
+    async register(userData) {
+        try {
+            const response = await fetch(`${BASE_URL}/api/auth/register`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(userData),
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.message || "Registration failed")
+            }
+
+            return data
+        } catch (error) {
+            console.error("Registration error:", error)
+            throw error
+        }
+    }
+
+    async verifyEmail(token) {
+        try {
+            const response = await fetch(`${BASE_URL}/api/auth/verify-email`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ token }),
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.message || "Email verification failed")
+            }
+
+            return data
+        } catch (error) {
+            console.error("Email verification error:", error)
+            throw error
+        }
+    }
+
+    async forgotPassword(email) {
+        try {
+            const response = await fetch(`${BASE_URL}/api/auth/forgot-password`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ email }),
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.message || "Forgot password request failed")
+            }
+
+            return data
+        } catch (error) {
+            console.error("Forgot password error:", error)
+            throw error
+        }
+    }
+
+    async resetPassword(token, password, confirmPassword) {
+        try {
+            const response = await fetch(`${BASE_URL}/api/auth/reset-password`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ token, password, confirmPassword }),
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.message || "Password reset failed")
+            }
+
+            return data
+        } catch (error) {
+            console.error("Password reset error:", error)
+            throw error
+        }
+    }
+
     async logout() {
         try {
             // Call the logout endpoint

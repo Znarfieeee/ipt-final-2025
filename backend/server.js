@@ -254,8 +254,10 @@ async function startServer() {
     // No need to replace db.sequelize - it's already properly set up in _helpers/db.js
     // db.sequelize = await createPool(); ← This was causing the error
 
-    // Sync database using the existing Sequelize instance
-    await db.sequelize.sync({ force: false });
+    // IMPORTANT: Force true to update schema (temporarily)
+    // ⚠️ Change this back to {force: false} after first run
+    // as force:true will drop and recreate all tables
+    await db.sequelize.sync({ force: true });
 
     // Start server
     app.listen(port, () => {
@@ -272,6 +274,7 @@ async function startServer() {
           password: "admin", // In production, hash this password
           role: "Admin",
           status: "Active",
+          verified: new Date(), // Mark as verified
         },
       }).then(([user, created]) => {
         // Update title if needed
