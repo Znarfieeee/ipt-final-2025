@@ -1,10 +1,12 @@
 import React, { useState } from "react"
+import LoadingButton from "./LoadingButton"
 
 function DepartmentAddEditForm({ onSubmit, onCancel, initialData }) {
     const [formData, setFormData] = useState({
         name: initialData?.name || "",
         description: initialData?.description || "",
     })
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
     const handleChange = e => {
         const { name, value } = e.target
@@ -14,9 +16,14 @@ function DepartmentAddEditForm({ onSubmit, onCancel, initialData }) {
         }))
     }
 
-    const handleSubmit = e => {
+    const handleSubmit = async e => {
         e.preventDefault()
-        onSubmit?.(formData)
+        setIsSubmitting(true)
+        try {
+            await onSubmit?.(formData)
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
     return (
@@ -60,16 +67,19 @@ function DepartmentAddEditForm({ onSubmit, onCancel, initialData }) {
                                 <button
                                     type="button"
                                     onClick={onCancel}
-                                    className="px-4 py-2 rounded-md bg-red-400 text-secondary-foreground hover:bg-red-600 hover:text-background transition-colors"
+                                    disabled={isSubmitting}
+                                    className="px-4 py-2 rounded-md bg-red-400 text-secondary-foreground hover:bg-red-600 hover:text-background transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     Cancel
                                 </button>
-                                <button
+                                <LoadingButton
                                     type="submit"
-                                    className="px-4 py-2 rounded-md bg-green-400 text-primary hover:bg-green-600 hover:text-background transition-colors"
+                                    isLoading={isSubmitting}
+                                    loadingText="Saving..."
+                                    className="bg-green-400 text-primary hover:bg-green-600 hover:text-background transition-colors"
                                 >
                                     {initialData ? "Update" : "Create"} Department
-                                </button>
+                                </LoadingButton>
                             </div>
                         </div>
                     </form>

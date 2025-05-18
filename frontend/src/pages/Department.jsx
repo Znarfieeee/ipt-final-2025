@@ -7,10 +7,12 @@ import "../index.css"
 // Components
 import DepartmentAddEditForm from "../components/DepartmentAddEditForm"
 import ButtonWithIcon from "../components/ButtonWithIcon"
+import { DeleteConfirmation } from "../components/ui/delete-confirmation"
 
 // UI Libraries
 import { CiEdit } from "react-icons/ci"
 import { IoAddSharp } from "react-icons/io5"
+import { FaTrash } from "react-icons/fa"
 import { showToast } from "../util/alertHelper"
 
 function Department() {
@@ -19,6 +21,8 @@ function Department() {
     const [error, setError] = useState(null)
     const [showForm, setShowForm] = useState(false)
     const [editingUser, setEditingUser] = useState(null)
+    const [isAddButtonLoading, setIsAddButtonLoading] = useState(false)
+    const [actionButtonsLoading, setActionButtonsLoading] = useState({})
     const { fakeFetch } = useFakeBackend()
 
     const fetchDepartments = async () => {
@@ -62,13 +66,58 @@ function Department() {
     }, [fakeFetch])
 
     const handleAdd = () => {
-        setEditingUser(null)
-        setShowForm(true)
+        setIsAddButtonLoading(true)
+        try {
+            setEditingUser(null)
+            setShowForm(true)
+        } finally {
+            setIsAddButtonLoading(false)
+        }
     }
 
     const handleEdit = department => {
-        setEditingUser(department)
-        setShowForm(true)
+        // Set loading state for this specific department
+        setActionButtonsLoading(prev => ({ ...prev, [department.id]: true }))
+        try {
+            setEditingUser(department)
+            setShowForm(true)
+        } finally {
+            // Clear loading state
+            setActionButtonsLoading(prev => ({ ...prev, [department.id]: false }))
+        }
+    }
+
+    const handleDelete = async department => {
+        try {
+            // Set loading state for this department
+            setActionButtonsLoading(prev => ({ ...prev, [department.id]: true }))
+
+            if (!USE_FAKE_BACKEND) {
+                // Use real backend
+                await backendConnection.deleteDepartment(department.id)
+            } else {
+                // Use fake backend
+                const response = await fakeFetch(`/departments/${department.id}`, {
+                    method: "DELETE",
+                })
+
+                if (!response.ok) {
+                    throw new Error("Failed to delete department")
+                }
+            }
+
+            // Show success message
+            showToast("success", "Department deleted successfully!")
+
+            // Refresh departments list
+            await fetchDepartments()
+        } catch (err) {
+            console.error("Error deleting department:", err)
+            showToast("error", err.message || "Failed to delete department")
+        } finally {
+            // Clear loading state
+            setActionButtonsLoading(prev => ({ ...prev, [department.id]: false }))
+        }
     }
 
     const handleFormSubmit = async formData => {
@@ -177,6 +226,8 @@ function Department() {
                         tooltipContent="Add New Department"
                         onClick={handleAdd}
                         variant="primary"
+                        isLoading={isAddButtonLoading}
+                        loadingText="Adding..."
                     />
                 </div>
                 <hr />
@@ -217,13 +268,20 @@ function Department() {
                                     <td className="px-6 py-4 whitespace-nowrap text-start text-foreground">
                                         {dept.employeeCount || 0}
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-start">
+                                    <td className="flex gap-2 items-center px-6 py-4 whitespace-nowrap text-start">
                                         <ButtonWithIcon
                                             icon={CiEdit}
-                                            text="Edit"
+                                            text=""
                                             tooltipContent="Edit Department"
                                             onClick={() => handleEdit(dept)}
                                             variant="primary"
+                                            isLoading={actionButtonsLoading[dept.id]}
+                                            loadingText="Editing..."
+                                        />
+                                        <DeleteConfirmation
+                                            onConfirm={() => handleDelete(dept)}
+                                            itemName={`department "${dept.name}"`}
+                                            itemType="department"
                                         />
                                     </td>
                                 </tr>
