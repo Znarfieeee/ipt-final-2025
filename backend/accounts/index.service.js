@@ -464,8 +464,51 @@ async function resetPassword({ token, password }) {
 
 async function sendVerificationEmail(account, origin) {
     // Create verification URL - use the frontend URL directly for better testing
-    const frontendUrl = origin || "http://localhost:5173"
+    // Extract the real origin domain if it exists, otherwise use localhost
+    let frontendUrl
+
+    // Define the default frontend URLs
+    const localFrontendUrl = "http://localhost:5173"
+    const deployedFrontendUrl = "https://ipt-final-2025-espelita.onrender.com"
+
+    console.log(`Origin received: ${origin || "none"}`)
+
+    if (origin) {
+        // If origin is provided, determine if it's a frontend or backend URL
+        if (origin.includes("localhost")) {
+            // Local development
+            frontendUrl = localFrontendUrl
+        } else if (origin.includes("onrender.com")) {
+            // Deployed on render.com
+
+            // Check if it's the backend URL
+            if (origin.includes("-backend-")) {
+                // Replace backend with frontend in the URL or use the known frontend URL
+                frontendUrl = deployedFrontendUrl
+                console.log(
+                    `Detected backend URL, using frontend URL: ${frontendUrl}`
+                )
+            } else {
+                // It's already a frontend URL
+                frontendUrl = origin
+                console.log(`Using provided frontend URL: ${frontendUrl}`)
+            }
+        } else {
+            // Some other domain, use as is
+            frontendUrl = origin
+        }
+    } else {
+        // No origin provided, default to deployed frontend URL if in production, otherwise localhost
+        frontendUrl =
+            process.env.NODE_ENV === "production"
+                ? deployedFrontendUrl
+                : localFrontendUrl
+        console.log(`No origin provided, defaulting to: ${frontendUrl}`)
+    }
+
     const verifyUrl = `${frontendUrl}/verify-email?token=${account.verificationToken}`
+
+    console.log(`Generated verification URL: ${verifyUrl}`)
 
     // Create email content
     const emailContent = `
@@ -485,6 +528,7 @@ async function sendVerificationEmail(account, origin) {
     // Print the verification token for easier testing with direct API calls
     console.log(`
       Verification token: ${account.verificationToken}
+      Verification URL: ${verifyUrl}
       API endpoint: POST /api/auth/verify-email
       Body: { "token": "${account.verificationToken}" }
     `)
@@ -586,8 +630,41 @@ async function resendVerificationEmail(email, origin) {
     // Send email with verification token and get preview URL
     const emailPreviewUrl = await sendVerificationEmail(account, origin)
 
-    // Create verification URL for frontend
-    const frontendUrl = origin || "http://localhost:5173"
+    // Create verification URL for frontend using the same logic as in sendVerificationEmail
+    // Define the default frontend URLs
+    const localFrontendUrl = "http://localhost:5173"
+    const deployedFrontendUrl = "https://ipt-final-2025-espelita.onrender.com"
+
+    let frontendUrl
+
+    if (origin) {
+        // If origin is provided, determine if it's a frontend or backend URL
+        if (origin.includes("localhost")) {
+            // Local development
+            frontendUrl = localFrontendUrl
+        } else if (origin.includes("onrender.com")) {
+            // Deployed on render.com
+
+            // Check if it's the backend URL
+            if (origin.includes("-backend-")) {
+                // Replace backend with frontend in the URL or use the known frontend URL
+                frontendUrl = deployedFrontendUrl
+            } else {
+                // It's already a frontend URL
+                frontendUrl = origin
+            }
+        } else {
+            // Some other domain, use as is
+            frontendUrl = origin
+        }
+    } else {
+        // No origin provided, default to deployed frontend URL if in production, otherwise localhost
+        frontendUrl =
+            process.env.NODE_ENV === "production"
+                ? deployedFrontendUrl
+                : localFrontendUrl
+    }
+
     const verifyUrl = `${frontendUrl}/verify-email?token=${account.verificationToken}`
 
     return {

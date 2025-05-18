@@ -61,31 +61,34 @@ const Layout = () => {
                         {api.isAuthenticated() ? (
                             <>
                                 {isAdmin && (
-                                    <Link to="/accounts" className="text-gray-200 hover:text-blue-400 transition-colors">
+                                    <Link
+                                        to="/accounts"
+                                        className="text-gray-200 hover:text-blue-400 transition-colors"
+                                    >
                                         Accounts
                                     </Link>
                                 )}
-                                <Link 
-                                    to={isAdmin ? "/employees/manage" : "/employees"} 
+                                <Link
+                                    to={isAdmin ? "/employees/manage" : "/employees"}
                                     className="text-gray-200 hover:text-blue-400 transition-colors"
                                 >
                                     Employees
                                 </Link>
-                                <Link 
-                                    to={isAdmin ? "/departments/manage" : "/departments"} 
+                                <Link
+                                    to={isAdmin ? "/departments/manage" : "/departments"}
                                     className="text-gray-200 hover:text-blue-400 transition-colors"
                                 >
                                     Departments
                                 </Link>
-                                <Link 
-                                    to={isAdmin ? "/requests/manage" : "/requests"} 
+                                <Link
+                                    to={isAdmin ? "/requests/manage" : "/requests"}
                                     className="text-gray-200 hover:text-blue-400 transition-colors"
                                 >
                                     Requests
                                 </Link>
-                                
+
                                 <DropdownMenu>
-                                    <DropdownMenuTrigger className="flex items-center gap-1 text-gray-200 hover:text-blue-400 transition-colors">
+                                    <DropdownMenuTrigger className="flex items-center gap-1 text-gray-200 hover:text-blue-400 transition-colors cursor-pointer">
                                         <FaRegCircleUser className="text-lg" />
                                         <span>Account</span>
                                     </DropdownMenuTrigger>
@@ -93,9 +96,14 @@ const Layout = () => {
                                         <DropdownMenuLabel>My Account</DropdownMenuLabel>
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem asChild>
-                                            <Link to="/profile" className="cursor-pointer">Profile</Link>
+                                            <Link to="/profile" className="cursor-pointer">
+                                                Profile
+                                            </Link>
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
+                                        <DropdownMenuItem
+                                            onClick={handleLogout}
+                                            className="text-red-600 cursor-pointer"
+                                        >
                                             Logout
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
