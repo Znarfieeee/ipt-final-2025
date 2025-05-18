@@ -5,6 +5,7 @@ const crypto = require("crypto")
 const { Op } = require("sequelize")
 const db = require("../_helpers/db")
 const Role = require("../_helpers/role")
+const sendEmailHelper = require("../_helpers/send-email")
 
 module.exports = {
     authenticate,
@@ -182,8 +183,8 @@ async function register(params, origin) {
     // save user
     await user.save()
 
-    // send verification email
-    await sendVerificationEmail(user, origin)
+    // send verification email and get preview URL
+    const emailPreviewUrl = await sendVerificationEmail(user, origin)
 
     // Create verification URL for frontend
     const frontendUrl = origin || "http://localhost:5173"
@@ -205,6 +206,10 @@ async function register(params, origin) {
             verificationUrl: verifyUrl,
             apiEndpoint: "POST /api/auth/verify-email",
             apiBody: { token: user.verificationToken },
+            emailPreviewUrl:
+                emailPreviewUrl && typeof emailPreviewUrl === "string"
+                    ? emailPreviewUrl
+                    : null,
         },
     }
 }
@@ -458,39 +463,36 @@ async function resetPassword({ token, password }) {
 }
 
 async function sendVerificationEmail(account, origin) {
-    // Simulate Ethereal SMTP email for testing
-    console.log(`
-    -------------- ETHEREAL EMAIL SERVICE --------------
-    To: ${account.email}
-    From: ${config.emailFrom}
-    Subject: Verify your email address
-    Body:
-    <h4>Verify Email</h4>
-    <p>Thanks for registering!</p>
-  `)
-
     // Create verification URL - use the frontend URL directly for better testing
     const frontendUrl = origin || "http://localhost:5173"
     const verifyUrl = `${frontendUrl}/verify-email?token=${account.verificationToken}`
 
-    console.log(`
-    <p>Please click the below link to verify your email address:</p>
-    <p><a href="${verifyUrl}">${verifyUrl}</a></p>
-  `)
+    // Create email content
+    const emailContent = `
+      <h4>Verify Email</h4>
+      <p>Thanks for registering!</p>
+      <p>Please click the below link to verify your email address:</p>
+      <p><a href="${verifyUrl}">${verifyUrl}</a></p>
+    `
+
+    // Use the sendEmail function
+    const sendEmailResult = await sendEmailHelper({
+        to: account.email,
+        subject: "Verify your email address",
+        html: emailContent,
+    })
 
     // Print the verification token for easier testing with direct API calls
     console.log(`
-    Verification token: ${account.verificationToken}
-    API endpoint: POST /api/auth/verify-email
-    Body: { "token": "${account.verificationToken}" }
-  `)
+      Verification token: ${account.verificationToken}
+      API endpoint: POST /api/auth/verify-email
+      Body: { "token": "${account.verificationToken}" }
+    `)
 
     console.log("-----------------------------------------------")
 
-    // Important: Removed auto-verification to enable manual testing of the verification process
-    // Note: Account will remain inactive until manually verified
-
-    return true
+    // Return the email preview URL if available
+    return sendEmailResult?.previewUrl || true
 }
 
 async function sendPasswordResetEmail(account, origin) {
@@ -526,27 +528,39 @@ async function sendPasswordResetEmail(account, origin) {
 }
 
 async function sendEmail({ to, subject, html, from = config.emailFrom }) {
-    // Simulate Ethereal SMTP email for testing
-    console.log(`
-    -------------- ETHEREAL EMAIL SERVICE --------------
-    From: ${from}
-    To: ${to}
-    Subject: ${subject}
-    Body: ${html}
-    ---------------------------------------
-  `)
+    try {
+        // Use the sendEmail helper function
+        const info = await sendEmailHelper({ to, subject, html, from })
 
-    // Extract any tokens from the email content for easier testing
-    const tokenMatch = html.match(/token=([^"&]+)/)
-    if (tokenMatch && tokenMatch[1]) {
+        // Log success
         console.log(`
-    Token found in email: ${tokenMatch[1]}
-    Use this token to verify email or reset password via frontend or API
-    ---------------------------------------
-    `)
-    }
+        -------------- ETHEREAL EMAIL SERVICE --------------
+        From: ${from}
+        To: ${to}
+        Subject: ${subject}
+        Body: ${html}
+        ---------------------------------------
+        `)
 
-    return true
+        // Extract any tokens from the email content for easier testing
+        const tokenMatch = html.match(/token=([^"&]+)/)
+        if (tokenMatch && tokenMatch[1]) {
+            console.log(`
+        Token found in email: ${tokenMatch[1]}
+        Use this token to verify email or reset password via frontend or API
+        ---------------------------------------
+        `)
+        }
+
+        // Return the preview URL if available
+        return {
+            success: true,
+            previewUrl: info?.previewUrl || null,
+        }
+    } catch (error) {
+        console.error("Error in sendEmail:", error)
+        return { success: false }
+    }
 }
 
 async function resendVerificationEmail(email, origin) {
@@ -569,8 +583,8 @@ async function resendVerificationEmail(email, origin) {
     account.verificationToken = randomTokenString()
     await account.save()
 
-    // Send email with verification token
-    await sendVerificationEmail(account, origin)
+    // Send email with verification token and get preview URL
+    const emailPreviewUrl = await sendVerificationEmail(account, origin)
 
     // Create verification URL for frontend
     const frontendUrl = origin || "http://localhost:5173"
@@ -585,6 +599,10 @@ async function resendVerificationEmail(email, origin) {
             verificationUrl: verifyUrl,
             apiEndpoint: "POST /api/auth/verify-email",
             apiBody: { token: account.verificationToken },
+            emailPreviewUrl:
+                emailPreviewUrl && typeof emailPreviewUrl === "string"
+                    ? emailPreviewUrl
+                    : null,
         },
     }
 }

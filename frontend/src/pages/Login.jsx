@@ -17,7 +17,6 @@ function Login() {
     const [message, setMessage] = useState("")
     const [needsVerification, setNeedsVerification] = useState(false)
     const [verificationLoading, setVerificationLoading] = useState(false)
-    const [verificationDetails, setVerificationDetails] = useState(null)
     const { fakeFetch } = useFakeBackend()
     const { login } = useAuth()
 
@@ -35,12 +34,30 @@ function Login() {
     // Check for message from registration or verification success
     useEffect(() => {
         if (location.state?.message) {
-            setMessage(location.state.message)
-
             // Set verification details if available
             if (location.state.verificationDetails) {
-                setVerificationDetails(location.state.verificationDetails)
                 setNeedsVerification(true)
+
+                // Set message with email preview link if available
+                setMessage(
+                    <>
+                        {location.state.message}
+                        {location.state.verificationDetails?.emailPreviewUrl && (
+                            <div className="mt-2">
+                                <a
+                                    href={location.state.verificationDetails.emailPreviewUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="font-medium underline"
+                                >
+                                    View Email Preview
+                                </a>
+                            </div>
+                        )}
+                    </>
+                )
+            } else {
+                setMessage(location.state.message)
             }
 
             // Clear the state after displaying the message
@@ -53,7 +70,6 @@ function Login() {
         setLoading(true)
         setError("")
         setNeedsVerification(false)
-        setVerificationDetails(null)
 
         try {
             const email = emailRef.current.value
@@ -146,14 +162,27 @@ function Login() {
         try {
             // Call an API endpoint to resend verification email
             const result = await backendConnection.resendVerification(emailRef.current.value)
-            setMessage("Verification email has been resent. Please check your email.")
+
+            // Set success message with email preview link if available
+            setMessage(
+                <>
+                    Verification email has been resent. Please check your email for verification instructions.
+                    {result.verificationDetails?.emailPreviewUrl && (
+                        <div className="mt-2">
+                            <a
+                                href={result.verificationDetails.emailPreviewUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-medium underline"
+                            >
+                                View Email Preview
+                            </a>
+                        </div>
+                    )}
+                </>
+            )
+
             setError("")
-
-            // Set verification details if available in the response
-            if (result.verificationDetails) {
-                setVerificationDetails(result.verificationDetails)
-            }
-
             showToast("success", "Verification email sent")
         } catch (err) {
             setError("Failed to resend verification: " + (err.message || "Unknown error"))
@@ -197,30 +226,6 @@ function Login() {
                             >
                                 Resend verification email
                             </LoadingButton>
-                        </div>
-                    )}
-
-                    {/* Display verification details for testing when available */}
-                    {verificationDetails && (
-                        <div className="mt-4 p-4 bg-blue-50 border border-blue-300 text-blue-800 rounded">
-                            <p className="font-medium mb-2">Verification Details (For Testing)</p>
-                            <div className="text-xs font-mono bg-gray-100 p-3 rounded overflow-auto max-h-48">
-                                <p className="mb-1">
-                                    <strong>Token:</strong> {verificationDetails.verificationToken}
-                                </p>
-                                <p className="mb-1">
-                                    <strong>URL:</strong>{" "}
-                                    <a href={verificationDetails.verificationUrl} className="text-blue-600 underline">
-                                        {verificationDetails.verificationUrl}
-                                    </a>
-                                </p>
-                                <p className="mb-1">
-                                    <strong>API:</strong> {verificationDetails.apiEndpoint}
-                                </p>
-                                <p>
-                                    <strong>Body:</strong> {JSON.stringify(verificationDetails.apiBody)}
-                                </p>
-                            </div>
                         </div>
                     )}
                 </div>
