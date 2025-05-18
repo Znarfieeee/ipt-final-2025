@@ -17,6 +17,7 @@ function Login() {
     const [message, setMessage] = useState("")
     const [needsVerification, setNeedsVerification] = useState(false)
     const [verificationLoading, setVerificationLoading] = useState(false)
+    const [bypassLoading, setBypassLoading] = useState(false)
     const { fakeFetch } = useFakeBackend()
     const { login } = useAuth()
 
@@ -43,7 +44,7 @@ function Login() {
                     <>
                         {location.state.message}
                         {location.state.verificationDetails?.emailPreviewUrl && (
-                            <div className="mt-2">
+                            <div className="mt-2 flex items-center gap-3">
                                 <a
                                     href={location.state.verificationDetails.emailPreviewUrl}
                                     target="_blank"
@@ -52,6 +53,13 @@ function Login() {
                                 >
                                     View Email Preview
                                 </a>
+                                <button
+                                    onClick={() => handleBypassVerification(location.state.verificationDetails?.email)}
+                                    className="text-blue-600 hover:text-blue-800 font-medium underline"
+                                    disabled={bypassLoading}
+                                >
+                                    {bypassLoading ? "Processing..." : "Bypass Verification"}
+                                </button>
                             </div>
                         )}
                     </>
@@ -63,7 +71,7 @@ function Login() {
             // Clear the state after displaying the message
             navigate(location.pathname, { replace: true, state: {} })
         }
-    }, [location, navigate])
+    }, [location, navigate, bypassLoading])
 
     const handleSubmit = async e => {
         e.preventDefault()
@@ -126,7 +134,7 @@ function Login() {
                     ) {
                         setNeedsVerification(true)
                         // Set a more user-friendly error message
-                        setError("Your account needs to be verified before you can log in.")
+                        showToast("error", "Your account needs to be verified before you can log in.")
                     }
                 }
             }
@@ -168,7 +176,7 @@ function Login() {
                 <>
                     Verification email has been resent. Please check your email for verification instructions.
                     {result.verificationDetails?.emailPreviewUrl && (
-                        <div className="mt-2">
+                        <div className="mt-2 flex items-center gap-3">
                             <a
                                 href={result.verificationDetails.emailPreviewUrl}
                                 target="_blank"
@@ -177,6 +185,13 @@ function Login() {
                             >
                                 View Email Preview
                             </a>
+                            <button
+                                onClick={() => handleBypassVerification(emailRef.current.value)}
+                                className="text-blue-600 hover:text-blue-800 font-medium underline"
+                                disabled={bypassLoading}
+                            >
+                                {bypassLoading ? "Processing..." : "Bypass Verification"}
+                            </button>
                         </div>
                     )}
                 </>
@@ -189,6 +204,48 @@ function Login() {
             showToast("error", "Failed to resend verification")
         } finally {
             setVerificationLoading(false)
+        }
+    }
+
+    const handleBypassVerification = async email => {
+        const userEmail = email || emailRef.current.value
+
+        if (!userEmail) {
+            setError("Please enter your email address to bypass verification")
+            return
+        }
+
+        setBypassLoading(true)
+        try {
+            // Call the bypass verification endpoint
+            const response = await fetch(`${backendConnection.getBaseUrl()}/api/auth/bypass-verification`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ email: userEmail }),
+                credentials: "include",
+            })
+
+            const result = await response.json()
+
+            if (response.ok) {
+                setMessage("Email verification bypassed successfully! You can now log in.")
+                setNeedsVerification(false)
+                showToast("success", "Email verification bypassed successfully")
+
+                // If already verified, show appropriate message
+                if (result.alreadyVerified) {
+                    showToast("info", "This account is already verified")
+                }
+            } else {
+                throw new Error(result.message || "Failed to bypass verification")
+            }
+        } catch (err) {
+            setError("Failed to bypass verification: " + (err.message || "Unknown error"))
+            showToast("error", "Failed to bypass verification")
+        } finally {
+            setBypassLoading(false)
         }
     }
 
@@ -215,14 +272,24 @@ function Login() {
                                 Your account needs to be verified. Please check your email for verification
                                 instructions.
                             </p>
-                            <LoadingButton
-                                onClick={handleResendVerification}
-                                isLoading={verificationLoading}
-                                loadingText="Sending..."
-                                className="w-full bg-yellow-500 hover:bg-yellow-600 text-white"
-                            >
-                                Resend verification email
-                            </LoadingButton>
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <LoadingButton
+                                    onClick={handleResendVerification}
+                                    isLoading={verificationLoading}
+                                    loadingText="Sending..."
+                                    className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white"
+                                >
+                                    Resend verification email
+                                </LoadingButton>
+                                <LoadingButton
+                                    onClick={() => handleBypassVerification()}
+                                    isLoading={bypassLoading}
+                                    loadingText="Bypassing..."
+                                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
+                                >
+                                    Bypass verification
+                                </LoadingButton>
+                            </div>
                         </div>
                     )}
                 </div>
