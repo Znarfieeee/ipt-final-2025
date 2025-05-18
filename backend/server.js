@@ -366,6 +366,10 @@ app.use("/api/workflows", authenticateToken, require("./workflows"))
 
 // Add non-API versions for compatibility
 app.use("/accounts", require("./accounts/index.controller"))
+app.use("/departments", authenticateToken, require("./departments"))
+app.use("/employees", authenticateToken, require("./employees"))
+app.use("/requests", authenticateToken, require("./requests"))
+app.use("/workflows", authenticateToken, require("./workflows"))
 
 // Error handler
 app.use((err, req, res, next) => {

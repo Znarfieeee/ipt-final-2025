@@ -126,11 +126,10 @@ repairEmployeeAssociations()
 // Track recent requests to prevent duplicates
 const recentRequests = new Map()
 
-// Routes
+// Routes aligned with API requirements
 router.post("/", authorize(), validateRequest(createValidation), create)
 router.get("/", authorize(Role.Admin), getAll)
 router.get("/:id([0-9]+)", authorize(), getById)
-router.get("/:id([0-9]+)/items", authorize(), getItemsByRequestId)
 router.get("/employee/:employeeId([0-9]+)", authorize(), getByEmployeeId)
 router.put(
     "/:id([0-9]+)",
@@ -139,6 +138,9 @@ router.put(
     update
 )
 router.delete("/:id([0-9]+)", authorize(Role.Admin), _delete)
+
+// Additional utility endpoints
+router.get("/:id([0-9]+)/items", authorize(), getItemsByRequestId)
 router.post("/:id([0-9]+)/repair", authorize(), repairRequestAssociation)
 router.post("/deduplicate", authorize(Role.Admin), deduplicateRequests)
 router.delete("/all", authorize(Role.Admin), deleteAllRequests)

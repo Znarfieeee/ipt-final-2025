@@ -15,6 +15,7 @@ import { GoGitPullRequest, GoWorkflow } from "react-icons/go"
 import { TbTransfer } from "react-icons/tb"
 import { IoAddSharp } from "react-icons/io5"
 import { CiEdit } from "react-icons/ci"
+import { FaTrash } from "react-icons/fa"
 
 function Employees() {
     const [employees, setEmployees] = useState([])
@@ -283,6 +284,26 @@ function Employees() {
         setTransferringEmployee(null)
     }
 
+    const handleDelete = async employee => {
+        if (window.confirm(`Are you sure you want to delete employee ${employee.employeeId}?`)) {
+            try {
+                if (!USE_FAKE_BACKEND) {
+                    await backendConnection.deleteEmployee(employee.id)
+                } else {
+                    // Using fake backend
+                    await fakeFetch(`/employees/${employee.id}`, {
+                        method: "DELETE",
+                    })
+                }
+                showToast("success", "Employee deleted successfully!")
+                await loadEmployeesData()
+            } catch (error) {
+                console.error("Error deleting employee:", error)
+                showToast("error", error.message || "Failed to delete employee")
+            }
+        }
+    }
+
     return (
         <>
             <div className="bg-white shadow-md rounded-lg p-6">
@@ -386,6 +407,13 @@ function Employees() {
                                             tooltipContent="Edit"
                                             onClick={() => handleEdit(employee)}
                                             variant="primary"
+                                        />
+                                        <ButtonWithIcon
+                                            icon={FaTrash}
+                                            text=""
+                                            tooltipContent="Delete"
+                                            onClick={() => handleDelete(employee)}
+                                            variant="destructive"
                                         />
                                     </td>
                                 </tr>

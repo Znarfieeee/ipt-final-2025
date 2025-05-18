@@ -16,7 +16,7 @@ class BackendConnection {
     async login(email, password) {
         try {
             // Make direct fetch request for login to avoid error handling issues
-            const response = await fetch(`${BASE_URL}/api/accounts/authenticate`, {
+            const response = await fetch(`${BASE_URL}/accounts/authenticate`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -32,7 +32,7 @@ class BackendConnection {
                 try {
                     const errorData = await response.json()
                     errorMsg = errorData.message || errorData.error || errorMsg
-                } catch (_) {
+                } catch (error) {
                     // If we can't parse JSON, just use status text
                     errorMsg = response.statusText || errorMsg
                 }
@@ -167,6 +167,12 @@ class BackendConnection {
         })
     }
 
+    async deleteEmployee(id) {
+        return this.fetchData(`/employees/${id}`, {
+            method: "DELETE",
+        })
+    }
+
     // Departments
     async getDepartments() {
         return this.fetchData("/departments")
@@ -190,6 +196,12 @@ class BackendConnection {
         })
     }
 
+    async deleteDepartment(id) {
+        return this.fetchData(`/departments/${id}`, {
+            method: "DELETE",
+        })
+    }
+
     // Workflows
     async getWorkflows() {
         return this.fetchData("/workflows")
@@ -206,10 +218,17 @@ class BackendConnection {
         })
     }
 
-    async updateWorkflow(id, workflowData) {
+    async updateWorkflowStatus(id, statusData) {
         return this.fetchData(`/workflows/${id}/status`, {
             method: "PUT",
-            body: workflowData,
+            body: statusData,
+        })
+    }
+
+    async initiateOnboarding(employeeData) {
+        return this.fetchData("/workflows/onboarding", {
+            method: "POST",
+            body: employeeData,
         })
     }
 
@@ -218,12 +237,15 @@ class BackendConnection {
         return this.fetchData("/requests")
     }
 
+    async getRequestsByEmployeeId(employeeId) {
+        return this.fetchData(`/requests/employee/${employeeId}`)
+    }
+
     // Get a specific request by ID - with retries to handle potential item fetch issues
     async getRequestById(id) {
         // Try up to 3 times to get the request with its items
         for (let attempt = 1; attempt <= 3; attempt++) {
             try {
-                // Use BASE_URL instead of this.apiUrl which is undefined
                 const response = await fetch(`${BASE_URL}/api/requests/${id}`, {
                     method: "GET",
                     headers: {
@@ -555,7 +577,25 @@ class BackendConnection {
             // For account-related endpoints
             if (endpoint.startsWith("/accounts")) {
                 endpoint = `/api${endpoint}`
-            } else if (!endpoint.startsWith("/api")) {
+            }
+            // For employee-related endpoints
+            else if (endpoint.startsWith("/employees")) {
+                endpoint = `/api${endpoint}`
+            }
+            // For department-related endpoints
+            else if (endpoint.startsWith("/departments")) {
+                endpoint = `/api${endpoint}`
+            }
+            // For requests-related endpoints
+            else if (endpoint.startsWith("/requests")) {
+                endpoint = `/api${endpoint}`
+            }
+            // For workflows-related endpoints
+            else if (endpoint.startsWith("/workflows")) {
+                endpoint = `/api${endpoint}`
+            }
+            // For any other endpoints
+            else if (!endpoint.startsWith("/api")) {
                 endpoint = `/api${endpoint}`
             }
         }
@@ -754,6 +794,12 @@ class BackendConnection {
         } catch (_) {
             return [] // Return empty array on error
         }
+    }
+
+    async deleteRequest(id) {
+        return this.fetchData(`/requests/${id}`, {
+            method: "DELETE",
+        })
     }
 }
 

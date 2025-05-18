@@ -11,6 +11,7 @@ import ButtonWithIcon from "../components/ButtonWithIcon"
 // UI Libraries
 import { CiEdit } from "react-icons/ci"
 import { IoAddSharp } from "react-icons/io5"
+import { FaTrash } from "react-icons/fa"
 import { showToast } from "../util/alertHelper"
 
 function Department() {
@@ -82,6 +83,45 @@ function Department() {
         } finally {
             // Clear loading state
             setActionButtonsLoading(prev => ({ ...prev, [department.id]: false }))
+        }
+    }
+
+    const handleDelete = async department => {
+        if (
+            window.confirm(
+                `Are you sure you want to delete department "${department.name}"? This action cannot be undone.`
+            )
+        ) {
+            try {
+                // Set loading state for this department
+                setActionButtonsLoading(prev => ({ ...prev, [department.id]: true }))
+
+                if (!USE_FAKE_BACKEND) {
+                    // Use real backend
+                    await backendConnection.deleteDepartment(department.id)
+                } else {
+                    // Use fake backend
+                    const response = await fakeFetch(`/departments/${department.id}`, {
+                        method: "DELETE",
+                    })
+
+                    if (!response.ok) {
+                        throw new Error("Failed to delete department")
+                    }
+                }
+
+                // Show success message
+                showToast("success", "Department deleted successfully!")
+
+                // Refresh departments list
+                await fetchDepartments()
+            } catch (err) {
+                console.error("Error deleting department:", err)
+                showToast("error", err.message || "Failed to delete department")
+            } finally {
+                // Clear loading state
+                setActionButtonsLoading(prev => ({ ...prev, [department.id]: false }))
+            }
         }
     }
 
@@ -242,6 +282,15 @@ function Department() {
                                             variant="primary"
                                             isLoading={actionButtonsLoading[dept.id]}
                                             loadingText="Editing..."
+                                        />
+                                        <ButtonWithIcon
+                                            icon={FaTrash}
+                                            text="Delete"
+                                            tooltipContent="Delete Department"
+                                            onClick={() => handleDelete(dept)}
+                                            variant="danger"
+                                            isLoading={actionButtonsLoading[dept.id]}
+                                            loadingText="Deleting..."
                                         />
                                     </td>
                                 </tr>

@@ -5,6 +5,7 @@ const authorize = require("../_middleware/authorize")
 const Role = require("../_helpers/role")
 const { createSchema, updateSchema } = require("../models/workflow.model")
 
+// Routes aligned with API requirements
 router.post("/", authorize(Role.Admin), create)
 router.get("/", authorize(Role.Admin), getAll)
 router.get("/employee/:employeeId", authorize(), getByEmployeeId)
