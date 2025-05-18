@@ -1,10 +1,12 @@
+
 import React, { useRef, useState, useEffect } from "react"
 import { Link, useNavigate, useLocation } from "react-router-dom"
 import { showToast } from "../util/alertHelper"
 import { USE_FAKE_BACKEND } from "../api/config"
 import useFakeBackend from "../api/fakeBackend"
-import backendConnection from "../api/BackendConnection"
 import LoadingButton from "../components/LoadingButton"
+import { useAuth } from "../context/AuthContext"
+import backendConnection from "../api/BackendConnection"
 
 function Login() {
     const emailRef = useRef()
@@ -15,6 +17,18 @@ function Login() {
     const [error, setError] = useState("")
     const [message, setMessage] = useState("")
     const { fakeFetch } = useFakeBackend()
+    const { login } = useAuth()
+
+    // Check if user is already logged in
+    useEffect(() => {
+        const token = localStorage.getItem("token")
+        const userInfo = localStorage.getItem("userInfo")
+
+        if (token && userInfo) {
+            // User is already logged in, redirect to home
+            navigate("/")
+        }
+    }, [navigate])
 
     // Check for message from registration or verification success
     useEffect(() => {
@@ -36,16 +50,15 @@ function Login() {
 
             if (USE_FAKE_BACKEND) {
                 // Use the fake backend for login
-                const response = await fakeFetch(`http://localhost:3000/api/auth/login`, {
+                const response = await fakeFetch(`http://localhost:3000/accounts/authenticate`, {
                     method: "POST",
                     body: { email, password },
                 })
                 const result = await response.json()
 
                 if (response.ok) {
-                    // Store token in localStorage for future API calls
-                    localStorage.setItem("token", result.token)
-                    localStorage.setItem("userInfo", JSON.stringify(result.user))
+                    // Use the auth context login function
+                    await login(email, password)
                     showToast("success", "Login successful")
                     navigate("/")
                 } else {
@@ -53,15 +66,15 @@ function Login() {
                     showToast("error", result.message || "Invalid credentials.")
                 }
             } else {
-                // Use the real backend through BackendConnection
-                const result = await backendConnection.login(email, password)
-
-                if (result) {
+                try {
+                    // Use the auth context login function
+                    await login(email, password)
                     showToast("success", "Login successful")
                     navigate("/")
-                } else {
-                    setError("Login failed. Please check your credentials.")
-                    showToast("error", "Login failed. Please check your credentials.")
+                } catch (loginError) {
+                    console.error("Direct login error:", loginError)
+                    setError(loginError.message)
+                    showToast("error", loginError.message)
                 }
             }
         } catch (err) {

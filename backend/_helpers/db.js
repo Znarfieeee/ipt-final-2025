@@ -44,8 +44,14 @@ db.User.hasMany(db.Employee, { foreignKey: "userId" });
 db.Employee.belongsTo(db.User, { foreignKey: "userId" });
 
 // Setup refresh token relationship with user
-db.User.hasMany(db.RefreshToken, { foreignKey: "accountId" });
-db.RefreshToken.belongsTo(db.User, { foreignKey: "accountId" });
+db.User.hasMany(db.RefreshToken, {
+  foreignKey: "accountId",
+  constraints: false, // Disable foreign key constraint enforcement
+});
+db.RefreshToken.belongsTo(db.User, {
+  foreignKey: "accountId",
+  constraints: false, // Disable foreign key constraint enforcement
+});
 
 db.Employee.hasMany(db.Request);
 db.Request.belongsTo(db.Employee);

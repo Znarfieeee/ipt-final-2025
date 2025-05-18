@@ -8,11 +8,12 @@ import "../index.css"
 // Components
 import RequestAddForm from "../components/RequestAddEditForm"
 import ButtonWithIcon from "../components/ButtonWithIcon"
+import { DeleteConfirmation } from "../components/ui/delete-confirmation"
 
 // UI Libraries
 import { IoAddSharp } from "react-icons/io5"
 import { CiEdit } from "react-icons/ci"
-import { FaTools } from "react-icons/fa"
+import { FaTools, FaTrash } from "react-icons/fa"
 import { RiDeleteBin6Line } from "react-icons/ri"
 
 function Requests() {
@@ -809,13 +810,6 @@ function Requests() {
 
     // Add function to handle delete all requests
     const handleDeleteAllRequests = async () => {
-        // Show a confirmation dialog first
-        const confirmed = window.confirm("Are you sure you want to delete ALL requests? This action cannot be undone.")
-
-        if (!confirmed) {
-            return
-        }
-
         try {
             setLoading(true)
 
@@ -828,6 +822,25 @@ function Requests() {
         } catch (error) {
             console.error("Error deleting all requests:", error)
             showToast("error", `Failed to delete requests: ${error.message}`)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    // Add function to delete individual request
+    const handleDeleteRequest = async request => {
+        try {
+            setLoading(true)
+
+            await backendConnection.deleteRequest(request.id)
+
+            // Remove the deleted request from state
+            setRequests(prevRequests => prevRequests.filter(req => req.id !== request.id))
+
+            showToast("success", `Request ${request.id} deleted successfully`)
+        } catch (error) {
+            console.error("Error deleting request:", error)
+            showToast("error", `Failed to delete request: ${error.message}`)
         } finally {
             setLoading(false)
         }
@@ -964,13 +977,20 @@ function Requests() {
                                         {handleStatus(request.status)}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-start">
-                                        <ButtonWithIcon
-                                            icon={CiEdit}
-                                            text="Edit"
-                                            tooltipContent="Edit Request"
-                                            onClick={() => handleEdit(request)}
-                                            variant="primary"
-                                        />
+                                        <div className="flex gap-2">
+                                            <ButtonWithIcon
+                                                icon={CiEdit}
+                                                text=""
+                                                tooltipContent="Edit Request"
+                                                onClick={() => handleEdit(request)}
+                                                variant="primary"
+                                            />
+                                            <DeleteConfirmation
+                                                onConfirm={() => handleDeleteRequest(request)}
+                                                itemName={`request #${request.id}`}
+                                                itemType="request"
+                                            />
+                                        </div>
                                     </td>
                                 </tr>
                             ))

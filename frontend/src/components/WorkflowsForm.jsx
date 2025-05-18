@@ -53,7 +53,7 @@ function WorkflowsForm({ initialData, onCancel }) {
         try {
             if (!USE_FAKE_BACKEND) {
                 // Use real backend
-                await backendConnection.updateWorkflow(workflowId, { status: newStatus })
+                await backendConnection.updateWorkflowStatus(workflowId, { status: newStatus })
                 // Refresh workflows after update
                 const updatedWorkflows = await backendConnection.getWorkflowsByEmployeeId(initialData.id)
                 setWorkflows(Array.isArray(updatedWorkflows) ? updatedWorkflows : [])
