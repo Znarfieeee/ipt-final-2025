@@ -7,6 +7,7 @@ function VerifyEmail() {
     const [status, setStatus] = useState("verifying") // verifying, success, error, debug
     const [message, setMessage] = useState("")
     const [token, setToken] = useState("")
+    const [email, setEmail] = useState("")
     const [debugInfo, setDebugInfo] = useState({})
     const location = useLocation()
     const navigate = useNavigate()
@@ -17,7 +18,9 @@ function VerifyEmail() {
                 // Get token from query params
                 const queryParams = new URLSearchParams(location.search)
                 const token = queryParams.get("token")
+                const email = queryParams.get("email") // Get email if available
                 setToken(token)
+                if (email) setEmail(email)
 
                 if (!token) {
                     setStatus("error")
@@ -58,16 +61,16 @@ function VerifyEmail() {
     const handleResendVerification = async () => {
         try {
             // Extract email from token or ask user
-            let email = prompt("Please enter your email address to resend verification:")
+            let userEmail = email || prompt("Please enter your email address to resend verification:")
 
-            if (!email) {
+            if (!userEmail) {
                 return
             }
 
             setStatus("verifying")
             setMessage("Sending new verification email...")
 
-            await backendConnection.resendVerification(email)
+            await backendConnection.resendVerification(userEmail)
             setStatus("info")
             setMessage("A new verification email has been sent. Please check your inbox.")
             showToast("success", "Verification email sent")
@@ -75,6 +78,47 @@ function VerifyEmail() {
             setStatus("error")
             setMessage("Failed to resend verification: " + (error.message || "Unknown error"))
             showToast("error", "Failed to resend verification")
+        }
+    }
+
+    const handleBypassVerification = async () => {
+        try {
+            // Ask for the email if we don't have it
+            let userEmail = email || prompt("Please enter your email address to bypass verification:")
+
+            if (!userEmail) {
+                showToast("error", "Email is required to bypass verification")
+                return
+            }
+
+            setStatus("verifying")
+            setMessage("Bypassing email verification...")
+
+            // Call the backend to bypass verification
+            // We'll use the debug endpoint to find the user and then manually verify them
+            const response = await fetch(`${backendConnection.getBaseUrl()}/api/auth/bypass-verification`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ email: userEmail }),
+                credentials: "include",
+            })
+
+            const result = await response.json()
+
+            if (response.ok) {
+                setStatus("success")
+                setMessage("Verification bypassed successfully! You can now log in.")
+                showToast("success", "Email verification bypassed")
+            } else {
+                throw new Error(result.message || "Failed to bypass verification")
+            }
+        } catch (error) {
+            console.error("Bypass verification error:", error)
+            setStatus("error")
+            setMessage("Failed to bypass verification: " + (error.message || "Unknown error"))
+            showToast("error", error.message || "Failed to bypass verification")
         }
     }
 
@@ -109,6 +153,15 @@ function VerifyEmail() {
                         <div className="mt-8">
                             <div className="bg-green-100 border border-green-300 text-green-600 p-4 rounded">
                                 <p className="font-medium">{message}</p>
+                                <div className="mt-3 text-sm border-t border-green-200 pt-2">
+                                    <p className="text-gray-600">Having trouble with verification?</p>
+                                    <button
+                                        onClick={handleBypassVerification}
+                                        className="mt-1 text-blue-600 hover:text-blue-800 font-medium underline"
+                                    >
+                                        Click here to bypass email verification
+                                    </button>
+                                </div>
                             </div>
                             <div className="mt-6 flex justify-center">
                                 <button
@@ -131,6 +184,15 @@ function VerifyEmail() {
                                         <span className="font-mono bg-gray-100 px-1">{token.substring(0, 20)}...</span>
                                     </p>
                                 )}
+                                <div className="mt-3 text-sm border-t border-red-200 pt-2">
+                                    <p className="text-gray-600">Having trouble with verification?</p>
+                                    <button
+                                        onClick={handleBypassVerification}
+                                        className="mt-1 text-blue-600 hover:text-blue-800 font-medium underline"
+                                    >
+                                        Click here to bypass email verification
+                                    </button>
+                                </div>
                                 <p className="mt-2 text-xs text-gray-500">
                                     <button onClick={toggleDebug} className="underline">
                                         Show technical details
@@ -162,6 +224,15 @@ function VerifyEmail() {
                                     {JSON.stringify(debugInfo, null, 2)}
                                 </pre>
                                 <p className="mt-2 font-medium text-red-600">{message}</p>
+                                <div className="mt-3 text-sm border-t border-gray-200 pt-2">
+                                    <p className="text-gray-600">Having trouble with verification?</p>
+                                    <button
+                                        onClick={handleBypassVerification}
+                                        className="mt-1 text-blue-600 hover:text-blue-800 font-medium underline"
+                                    >
+                                        Click here to bypass email verification
+                                    </button>
+                                </div>
                                 <p className="mt-2 text-xs text-gray-500">
                                     <button onClick={toggleDebug} className="underline">
                                         Hide technical details
@@ -189,6 +260,15 @@ function VerifyEmail() {
                         <div className="mt-8">
                             <div className="bg-blue-100 border border-blue-300 text-blue-600 p-4 rounded">
                                 <p className="font-medium">{message}</p>
+                                <div className="mt-3 text-sm border-t border-blue-200 pt-2">
+                                    <p className="text-gray-600">Having trouble with verification?</p>
+                                    <button
+                                        onClick={handleBypassVerification}
+                                        className="mt-1 text-blue-600 hover:text-blue-800 font-medium underline"
+                                    >
+                                        Click here to bypass email verification
+                                    </button>
+                                </div>
                             </div>
                             <div className="mt-6 flex justify-center">
                                 <button
