@@ -511,6 +511,19 @@ class BackendConnection {
         })
     }
 
+    // Add method to validate token
+    async validateToken() {
+        try {
+            return await this.fetchData("/auth/validate-token", {
+                method: "GET",
+                skipAuthRedirect: true, // Skip automatic redirect to handle it in the auth context
+            })
+        } catch (error) {
+            console.error("Token validation error:", error)
+            return { valid: false, error: error.message }
+        }
+    }
+
     // Helper method for making API requests
     async fetchData(endpoint, options = {}) {
         // Ensure endpoint starts with /api if it's not already there
@@ -543,10 +556,21 @@ class BackendConnection {
         try {
             const response = await fetch(url, fetchOptions)
 
-            // Handle 401 Unauthorized by redirecting to login
-            if (response.status === 401) {
+            // Handle 401 Unauthorized or 403 Forbidden by redirecting to login
+            if ((response.status === 401 || response.status === 403) && !options.skipAuthRedirect) {
+                console.warn(`Authentication error (${response.status}) - redirecting to login`)
+
+                // Dispatch a custom event that can be listened to by other components
+                const authErrorEvent = new CustomEvent("auth:error", {
+                    detail: { status: response.status, message: "Authentication failed" },
+                })
+                window.dispatchEvent(authErrorEvent)
+
+                // Clear authentication data
                 localStorage.removeItem("token")
                 localStorage.removeItem("userInfo")
+
+                // Redirect to login page
                 window.location.href = "/login"
                 return null
             }

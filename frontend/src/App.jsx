@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useEffect } from "react"
 import { createBrowserRouter, RouterProvider } from "react-router-dom"
 import { AppProvider } from "./context/AppContext"
 import Login from "./pages/Login"
@@ -10,6 +10,7 @@ import Requests from "./pages/Requests"
 import NotFound from "./pages/NotFound"
 import Home from "./pages/Home"
 import ProtectedRoute from "./components/ProtectedRoute"
+import backendConnection from "./api/BackendConnection"
 
 function App() {
     const router = createBrowserRouter([
@@ -52,6 +53,47 @@ function App() {
             element: <NotFound />,
         },
     ])
+
+    // Setup token validation on regular intervals
+    useEffect(() => {
+        // Add listener for auth error events
+        const handleAuthError = event => {
+            console.log("Auth error detected:", event.detail)
+            // Explicitly redirect to login on auth error
+            localStorage.removeItem("token")
+            localStorage.removeItem("userInfo")
+            window.location.href = "/login"
+        }
+        window.addEventListener("auth:error", handleAuthError)
+
+        // Validate token periodically
+        const validateTokenInterval = setInterval(async () => {
+            if (localStorage.getItem("token")) {
+                try {
+                    const result = await backendConnection.validateToken()
+
+                    // If token validation explicitly returns invalid status
+                    if (result && result.valid === false) {
+                        console.log("Token validation failed, redirecting to login")
+                        localStorage.removeItem("token")
+                        localStorage.removeItem("userInfo")
+                        window.location.href = "/login"
+                    }
+                } catch (error) {
+                    console.error("Token validation error:", error)
+                    // Explicitly redirect on token validation error
+                    localStorage.removeItem("token")
+                    localStorage.removeItem("userInfo")
+                    window.location.href = "/login"
+                }
+            }
+        }, 5 * 60 * 1000) // Check every 5 minutes
+
+        return () => {
+            window.removeEventListener("auth:error", handleAuthError)
+            clearInterval(validateTokenInterval)
+        }
+    }, [])
 
     return (
         <AppProvider>

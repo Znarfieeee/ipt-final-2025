@@ -219,6 +219,71 @@ app.post(
     }
 )
 
+// Token validation endpoint
+app.get("/api/auth/validate-token", async (req, res) => {
+    const token = req.cookies.token || req.headers.authorization?.split(" ")[1]
+
+    if (!token) {
+        return res.status(401).json({
+            valid: false,
+            message: "No token provided",
+        })
+    }
+
+    try {
+        const decoded = jwt.verify(
+            token,
+            process.env.JWT_SECRET || "sample-key"
+        )
+
+        // Check if token is about to expire (less than 1 hour left)
+        const currentTime = Math.floor(Date.now() / 1000)
+        const timeRemaining = decoded.exp - currentTime
+
+        let refreshedToken = null
+
+        // If token is close to expiration (less than 1 hour), refresh it
+        if (timeRemaining < 3600) {
+            refreshedToken = jwt.sign(
+                {
+                    id: decoded.id,
+                    email: decoded.email,
+                    role: decoded.role,
+                    employeeId: decoded.employeeId,
+                },
+                process.env.JWT_SECRET || "sample-key",
+                { expiresIn: "24h" }
+            )
+
+            // Set the new token in cookies
+            res.cookie("token", refreshedToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: "strict",
+                maxAge: 24 * 60 * 60 * 1000, // 24 hours
+            })
+        }
+
+        return res.json({
+            valid: true,
+            user: {
+                id: decoded.id,
+                email: decoded.email,
+                role: decoded.role,
+                employeeId: decoded.employeeId,
+            },
+            refreshed: !!refreshedToken,
+            exp: decoded.exp,
+        })
+    } catch (error) {
+        return res.status(401).json({
+            valid: false,
+            message: "Invalid or expired token",
+            error: error.message,
+        })
+    }
+})
+
 // Logout route
 app.post("/api/auth/logout", (req, res) => {
     res.clearCookie("token")

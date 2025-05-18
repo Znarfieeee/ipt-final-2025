@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom"
 import { showToast } from "../util/alertHelper"
 import { USE_FAKE_BACKEND } from "../api/config"
 import useFakeBackend from "../api/fakeBackend"
-import backendConnection from "../api/BackendConnection"
 import LoadingButton from "../components/LoadingButton"
+import { useAuth } from "../context/AuthContext"
 
 function Login() {
     const emailRef = useRef()
@@ -13,6 +13,7 @@ function Login() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState("")
     const { fakeFetch } = useFakeBackend()
+    const { login } = useAuth()
 
     // Check if user is already logged in
     useEffect(() => {
@@ -43,9 +44,8 @@ function Login() {
                 const result = await response.json()
 
                 if (response.ok) {
-                    // Store token in localStorage for future API calls
-                    localStorage.setItem("token", result.token)
-                    localStorage.setItem("userInfo", JSON.stringify(result.user))
+                    // Use the auth context login function
+                    await login(email, password)
                     showToast("success", "Login successful")
                     navigate("/")
                 } else {
@@ -54,41 +54,10 @@ function Login() {
                 }
             } else {
                 try {
-                    // Use direct fetch for more reliable login
-                    const response = await fetch(`${backendConnection.getBaseUrl()}/api/auth/login`, {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({ email, password }),
-                        credentials: "include", // Important for cookies
-                    })
-
-                    if (!response.ok) {
-                        // Try to get error message
-                        let errorMessage = "Login failed"
-                        try {
-                            const errorData = await response.json()
-                            errorMessage = errorData.message || errorData.error || errorMessage
-                        } catch {
-                            errorMessage = "Server error: " + response.status
-                        }
-                        throw new Error(errorMessage)
-                    }
-
-                    const result = await response.json()
-
-                    // Store authentication info
-                    if (result.token) {
-                        localStorage.setItem("token", result.token)
-                        if (result.user) {
-                            localStorage.setItem("userInfo", JSON.stringify(result.user))
-                        }
-                        showToast("success", "Login successful")
-                        navigate("/")
-                    } else {
-                        throw new Error("Invalid response from server")
-                    }
+                    // Use the auth context login function
+                    await login(email, password)
+                    showToast("success", "Login successful")
+                    navigate("/")
                 } catch (loginError) {
                     console.error("Direct login error:", loginError)
                     setError(loginError.message)
