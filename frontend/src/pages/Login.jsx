@@ -65,9 +65,12 @@ function Login() {
                 } else {
                     setError(result.message || "Invalid credentials")
                     showToast("error", result.message || "Invalid credentials.")
-                    
+
                     // Check if needs verification
-                    if (result.message && (result.message.includes("not verified") || result.message.includes("verify your email"))) {
+                    if (
+                        result.message &&
+                        (result.message.includes("not verified") || result.message.includes("verify your email"))
+                    ) {
                         setNeedsVerification(true)
                     }
                 }
@@ -81,9 +84,13 @@ function Login() {
                     console.error("Direct login error:", loginError)
                     setError(loginError.message)
                     showToast("error", loginError.message)
-                    
+
                     // Check if needs verification
-                    if (loginError.message && (loginError.message.includes("not verified") || loginError.message.includes("verify your email"))) {
+                    if (
+                        loginError.message &&
+                        (loginError.message.includes("not verified") ||
+                            loginError.message.includes("verify your email"))
+                    ) {
                         setNeedsVerification(true)
                     }
                 }
@@ -92,7 +99,7 @@ function Login() {
             console.error("Login error:", err)
             setError(err.message || "Unknown error")
             showToast("error", "Login failed: " + (err.message || "Unknown error"))
-            
+
             // Check if needs verification
             if (err.message && (err.message.includes("not verified") || err.message.includes("verify your email"))) {
                 setNeedsVerification(true)
@@ -101,26 +108,26 @@ function Login() {
             setLoading(false)
         }
     }
-    
+
     const handleResendVerification = async () => {
         if (!emailRef.current.value) {
-            setError("Please enter your email address to resend verification");
-            return;
+            setError("Please enter your email address to resend verification")
+            return
         }
-        
-        setLoading(true);
+
+        setLoading(true)
         try {
             // Call an API endpoint to resend verification email
-            await backendConnection.resendVerification(emailRef.current.value);
-            setMessage("Verification email has been resent. Please check your email.");
-            setError("");
-            setNeedsVerification(false);
-            showToast("success", "Verification email sent");
+            await backendConnection.resendVerification(emailRef.current.value)
+            setMessage("Verification email has been resent. Please check your email.")
+            setError("")
+            setNeedsVerification(false)
+            showToast("success", "Verification email sent")
         } catch (err) {
-            setError("Failed to resend verification: " + (err.message || "Unknown error"));
-            showToast("error", "Failed to resend verification");
+            setError("Failed to resend verification: " + (err.message || "Unknown error"))
+            showToast("error", "Failed to resend verification")
         } finally {
-            setLoading(false);
+            setLoading(false)
         }
     }
 
@@ -132,17 +139,19 @@ function Login() {
                     <p className="mt-2 text-center text-sm text-gray-600">
                         {USE_FAKE_BACKEND ? "(Using Fake Backend)" : "(Using Real Backend)"}
                     </p>
-                    
+
                     {message && (
-                        <div className="mt-2 p-2 bg-green-100 border border-green-300 text-green-600 rounded">{message}</div>
+                        <div className="mt-2 p-2 bg-green-100 border border-green-300 text-green-600 rounded">
+                            {message}
+                        </div>
                     )}
-                    
+
                     {error && (
                         <div className="mt-2 p-2 bg-red-100 border border-red-300 text-red-600 rounded">
                             {error}
                             {needsVerification && (
                                 <div className="mt-2">
-                                    <button 
+                                    <button
                                         onClick={handleResendVerification}
                                         className="text-blue-600 hover:text-blue-800 underline"
                                     >
@@ -154,9 +163,9 @@ function Login() {
                     )}
                 </div>
                 <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-                    <div className="rounded-md shadow-sm -space-y-px">
-                        <div>
-                            <label htmlFor="email" className="sr-only">
+                    <div className="rounded-md space-y-3">
+                        <div className="flex flex-col gap-px">
+                            <label htmlFor="email" className="">
                                 Email address
                             </label>
                             <input
@@ -167,12 +176,11 @@ function Login() {
                                 required
                                 ref={emailRef}
                                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                                placeholder="Email address"
-                                defaultValue="admin@example.com" // For easy testing
+                                placeholder="(admin@example.com)"
                             />
                         </div>
-                        <div>
-                            <label htmlFor="password" className="sr-only">
+                        <div className="flex flex-col gap-px">
+                            <label htmlFor="password" className="">
                                 Password
                             </label>
                             <input
@@ -183,8 +191,7 @@ function Login() {
                                 required
                                 ref={passwordRef}
                                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                                placeholder="Password"
-                                defaultValue="admin" // For easy testing
+                                placeholder="(admin)"
                             />
                         </div>
                     </div>
