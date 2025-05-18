@@ -44,7 +44,7 @@ function Login() {
                     <>
                         {location.state.message}
                         {location.state.verificationDetails?.emailPreviewUrl && (
-                            <div className="mt-2 flex items-center gap-3">
+                            <div className="mt-2 flex items-center justify-between">
                                 <a
                                     href={location.state.verificationDetails.emailPreviewUrl}
                                     target="_blank"
@@ -280,14 +280,6 @@ function Login() {
                                     className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white"
                                 >
                                     Resend verification email
-                                </LoadingButton>
-                                <LoadingButton
-                                    onClick={() => handleBypassVerification()}
-                                    isLoading={bypassLoading}
-                                    loadingText="Bypassing..."
-                                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
-                                >
-                                    Bypass verification
                                 </LoadingButton>
                             </div>
                         </div>
