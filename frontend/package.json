@@ -5,9 +5,10 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "build": "vite build && cp -r public/* dist/",
+        "build": "vite build && cp -r public/* dist/ && cp vercel.json dist/ && cp static.json dist/",
         "lint": "eslint .",
-        "preview": "vite preview"
+        "preview": "vite preview",
+        "start": "node server.cjs"
     },
     "dependencies": {
         "@chakra-ui/react": "^3.17.0",
@@ -22,6 +23,7 @@
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "date-fns": "^3.6.0",
+        "express": "^4.19.1",
         "lucide-react": "^0.508.0",
         "next-themes": "^0.4.6",
         "react": "^19.0.0",
