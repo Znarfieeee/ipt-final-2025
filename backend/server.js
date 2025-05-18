@@ -367,15 +367,9 @@ app.use("/workflows", authenticateToken, (req, res, next) => {
   next();
 });
 
-// Error handler
-app.use((err, req, res, next) => {
-  // Always return JSON, never HTML
-  res.setHeader("Content-Type", "application/json");
-
-  res.status(err.status || 500).json({
-    message: err.message || "Internal Server Error",
-  });
-});
+// Error handler - must be after all routes
+const errorHandler = require("./_middleware/error-handler");
+app.use(errorHandler);
 
 // Handle 404 errors as JSON
 app.use((req, res) => {
@@ -389,7 +383,14 @@ const port = process.env.PORT || 3000;
 async function startServer() {
   try {
     // Initialize database (just creates the database if it doesn't exist)
-    await initializeDatabase();
+    try {
+      await initializeDatabase();
+      console.log("Database initialization completed");
+    } catch (dbError) {
+      console.error("Database initialization error:", dbError.message);
+      console.log("Server will continue without database initialization...");
+      // Continue anyway - we'll use in-memory or mocked data
+    }
 
     // No need to replace db.sequelize - it's already properly set up in _helpers/db.js
     // db.sequelize = await createPool(); ← This was causing the error
@@ -409,7 +410,7 @@ async function startServer() {
       );
     } catch (syncError) {
       console.error("Database sync error:", syncError.message);
-      // Continue anyway - tables probably already exist
+      // Continue anyway - tables probably already exist or we'll use in-memory data
     }
 
     // Start server

@@ -18,7 +18,7 @@ import { IoAddSharp } from "react-icons/io5"
 import { CiEdit } from "react-icons/ci"
 import { FaTrash } from "react-icons/fa"
 
-function Employees() {
+function Employees({ readOnly = false }) {
     const [employees, setEmployees] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
@@ -308,15 +308,17 @@ function Employees() {
             <div className="bg-white shadow-md rounded-lg p-6">
                 <div id="table-header" className="flex flex-row justify-between items-center mb-2">
                     <h1 className="text-2xl font-bold capitalize text-foreground">EMPLOYEES</h1>
-                    <div className="flex items-center space-x-4">
-                        <ButtonWithIcon
-                            icon={IoAddSharp}
-                            text="Employee"
-                            tooltipContent="Add New Employee"
-                            onClick={handleAdd}
-                            variant="primary"
-                        />
-                    </div>
+                    {!readOnly && (
+                        <div className="flex items-center space-x-4">
+                            <ButtonWithIcon
+                                icon={IoAddSharp}
+                                text="Employee"
+                                tooltipContent="Add New Employee"
+                                onClick={handleAdd}
+                                variant="primary"
+                            />
+                        </div>
+                    )}
                 </div>
                 <hr className="mb-4" />
 
@@ -351,9 +353,11 @@ function Employees() {
                             <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
                                 Status
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
-                                Actions
-                            </th>
+                            {!readOnly && (
+                                <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
+                                    Actions
+                                </th>
+                            )}
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -378,46 +382,48 @@ function Employees() {
                                     <td className="px-6 py-4 whitespace-nowrap text-start">
                                         {handleStatus(employee.status)}
                                     </td>
-                                    <td className="flex px-6 py-4 whitespace-nowrap text-start gap-2">
-                                        <ButtonWithIcon
-                                            icon={GoGitPullRequest}
-                                            text=""
-                                            tooltipContent="Request"
-                                            onClick={() => navigate("/requests")}
-                                            variant="orange"
-                                        />
-                                        <ButtonWithIcon
-                                            icon={GoWorkflow}
-                                            text=""
-                                            tooltipContent="Workflows"
-                                            onClick={() => handleWorkflows(employee)}
-                                            variant="pink"
-                                        />
-                                        <ButtonWithIcon
-                                            icon={TbTransfer}
-                                            text=""
-                                            tooltipContent="Transfer"
-                                            onClick={() => handleTransfer(employee)}
-                                            variant="warning"
-                                        />
-                                        <ButtonWithIcon
-                                            icon={CiEdit}
-                                            text=""
-                                            tooltipContent="Edit"
-                                            onClick={() => handleEdit(employee)}
-                                            variant="primary"
-                                        />
-                                        <DeleteConfirmation
-                                            onConfirm={() => handleDelete(employee)}
-                                            itemName={`employee ${employee.employeeId}`}
-                                            itemType="employee"
-                                        />
-                                    </td>
+                                    {!readOnly && (
+                                        <td className="flex px-6 py-4 whitespace-nowrap text-start gap-2">
+                                            <ButtonWithIcon
+                                                icon={GoGitPullRequest}
+                                                text=""
+                                                tooltipContent="Request"
+                                                onClick={() => navigate("/requests")}
+                                                variant="orange"
+                                            />
+                                            <ButtonWithIcon
+                                                icon={GoWorkflow}
+                                                text=""
+                                                tooltipContent="Workflows"
+                                                onClick={() => handleWorkflows(employee)}
+                                                variant="pink"
+                                            />
+                                            <ButtonWithIcon
+                                                icon={TbTransfer}
+                                                text=""
+                                                tooltipContent="Transfer"
+                                                onClick={() => handleTransfer(employee)}
+                                                variant="warning"
+                                            />
+                                            <ButtonWithIcon
+                                                icon={CiEdit}
+                                                text=""
+                                                tooltipContent="Edit"
+                                                onClick={() => handleEdit(employee)}
+                                                variant="primary"
+                                            />
+                                            <DeleteConfirmation
+                                                onConfirm={() => handleDelete(employee)}
+                                                itemName={`employee ${employee.employeeId}`}
+                                                itemType="employee"
+                                            />
+                                        </td>
+                                    )}
                                 </tr>
                             ))
                         ) : (
                             <tr>
-                                <td colSpan="7" className="px-6 py-4 text-center text-destructive">
+                                <td colSpan={readOnly ? "6" : "7"} className="px-6 py-4 text-center text-destructive">
                                     No employees found
                                 </td>
                             </tr>

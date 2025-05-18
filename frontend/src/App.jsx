@@ -13,6 +13,7 @@ import Employees from "./pages/Employees"
 import Requests from "./pages/Requests"
 import NotFound from "./pages/NotFound"
 import Home from "./pages/Home"
+import Profile from "./pages/Profile"
 import ProtectedRoute from "./components/ProtectedRoute"
 import backendConnection from "./api/BackendConnection"
 
@@ -32,19 +33,67 @@ function App() {
                 },
                 {
                     path: "accounts",
-                    element: <Accounts />,
+                    element: (
+                        <ProtectedRoute requiredRole="Admin">
+                            <Accounts />
+                        </ProtectedRoute>
+                    ),
+                },
+                {
+                    path: "employees/manage",
+                    element: (
+                        <ProtectedRoute requiredRole="Admin">
+                            <Employees readOnly={false} />
+                        </ProtectedRoute>
+                    ),
                 },
                 {
                     path: "employees",
-                    element: <Employees />,
+                    element: (
+                        <ProtectedRoute>
+                            <Employees readOnly={true} />
+                        </ProtectedRoute>
+                    ),
+                },
+                {
+                    path: "departments/manage",
+                    element: (
+                        <ProtectedRoute requiredRole="Admin">
+                            <Department readOnly={false} />
+                        </ProtectedRoute>
+                    ),
                 },
                 {
                     path: "departments",
-                    element: <Department />,
+                    element: (
+                        <ProtectedRoute>
+                            <Department readOnly={true} />
+                        </ProtectedRoute>
+                    ),
+                },
+                {
+                    path: "requests/manage",
+                    element: (
+                        <ProtectedRoute requiredRole="Admin">
+                            <Requests readOnly={false} />
+                        </ProtectedRoute>
+                    ),
                 },
                 {
                     path: "requests",
-                    element: <Requests />,
+                    element: (
+                        <ProtectedRoute>
+                            <Requests readOnly={true} />
+                        </ProtectedRoute>
+                    ),
+                },
+                {
+                    path: "profile",
+                    element: (
+                        <ProtectedRoute>
+                            <Profile />
+                        </ProtectedRoute>
+                    ),
                 },
             ],
         },

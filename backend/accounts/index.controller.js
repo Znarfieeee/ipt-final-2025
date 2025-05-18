@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { body } = require("express-validator");
 const validateRequest = require("../_middleware/validate-request");
+const validateSchema = require("../_middleware/validate-schema");
 const authorize = require("../_middleware/authorize");
 const Role = require("../_helpers/role");
 const accountService = require("./index.service");
@@ -46,12 +47,69 @@ const updateValidation = [
     .withMessage("Invalid role"),
 ];
 
+// Joi schema definitions
+const verifyEmailSchema = Joi.object({
+  token: Joi.string().required(),
+});
+
+const resendVerificationSchema = Joi.object({
+  email: Joi.string().email().required(),
+});
+
+const revokeTokenSchema = Joi.object({
+  token: Joi.string().empty(""),
+});
+
+const forgotPasswordSchema = Joi.object({
+  email: Joi.string().email().required(),
+});
+
+const validateResetTokenSchema = Joi.object({
+  token: Joi.string().required(),
+});
+
+const resetPasswordSchema = Joi.object({
+  token: Joi.string().required(),
+  password: Joi.string().min(6).required(),
+  confirmPassword: Joi.string().valid(Joi.ref("password")).required(),
+});
+
 // Routes
 router.post("/authenticate", validateRequest(loginValidation), authenticate);
 router.post("/register", validateRequest(registerValidation), register);
-router.post("/verify-email", validateResetTokenSchema, verifyEmail);
+router.post("/verify-email", validateSchema(verifyEmailSchema), verifyEmail);
+router.post(
+  "/resend-verification",
+  validateSchema(resendVerificationSchema),
+  resendVerification
+);
 router.post("/refresh-token", refreshToken);
-router.post("/revoke-token", authorize(), revokeTokenSchema, revokeToken);
+router.post(
+  "/revoke-token",
+  authorize(),
+  validateSchema(revokeTokenSchema),
+  revokeToken
+);
+
+// Profile management routes
+const changePasswordSchema = Joi.object({
+  currentPassword: Joi.string().required(),
+  newPassword: Joi.string().min(6).required(),
+  confirmPassword: Joi.string().valid(Joi.ref("newPassword")).required(),
+});
+
+router.post(
+  "/change-password",
+  authorize(),
+  validateSchema(changePasswordSchema),
+  changePassword
+);
+
+router.get("/sessions", authorize(), getSessions);
+router.delete("/sessions/:id", authorize(), revokeSession);
+router.post("/sessions/revoke-all", authorize(), revokeAllSessions);
+
+// Original routes
 router.get("/", authorize(Role.Admin), getAll);
 router.get("/:id", authorize(), getById);
 router.put("/:id", authorize(), updateValidation, update);
@@ -127,6 +185,23 @@ router.get("/test-users", (req, res) => {
   }
 });
 
+// Forgot/reset password routes
+router.post(
+  "/forgot-password",
+  validateSchema(forgotPasswordSchema),
+  forgotPassword
+);
+router.post(
+  "/validate-reset-token",
+  validateSchema(validateResetTokenSchema),
+  validateResetToken
+);
+router.post(
+  "/reset-password",
+  validateSchema(resetPasswordSchema),
+  resetPassword
+);
+
 module.exports = router;
 
 function authenticateSchema(req, res, next) {
@@ -193,13 +268,6 @@ function refreshToken(req, res, next) {
     .catch(next);
 }
 
-function revokeTokenSchema(req, res, next) {
-  const schema = Joi.object({
-    token: Joi.string().empty(""),
-  });
-  validateRequest(req, next, schema);
-}
-
 function revokeToken(req, res, next) {
   // accept token from request body or cookie
   const token = req.body.token || req.cookies.refreshToken;
@@ -238,13 +306,6 @@ function register(req, res, next) {
     .catch(next);
 }
 
-function verifyEmailSchema(req, res, next) {
-  const schema = Joi.object({
-    token: Joi.string().required(),
-  });
-  validateRequest(req, next, schema);
-}
-
 function verifyEmail(req, res, next) {
   accountService
     .verifyEmail(req.body.token)
@@ -252,11 +313,11 @@ function verifyEmail(req, res, next) {
     .catch(next);
 }
 
-function forgotPasswordSchema(req, res, next) {
-  const schema = Joi.object({
-    email: Joi.string().email().required(),
-  });
-  validateRequest(req, next, schema);
+function resendVerification(req, res, next) {
+  accountService
+    .resendVerificationEmail(req.body.email, req.get("origin"))
+    .then((result) => res.json(result))
+    .catch(next);
 }
 
 function forgotPassword(req, res, next) {
@@ -270,27 +331,11 @@ function forgotPassword(req, res, next) {
     .catch(next);
 }
 
-function validateResetTokenSchema(req, res, next) {
-  const schema = Joi.object({
-    token: Joi.string().required(),
-  });
-  validateRequest(req, next, schema);
-}
-
 function validateResetToken(req, res, next) {
   accountService
     .validateResetToken(req.body)
     .then(() => res.json({ message: "Token is valid" }))
     .catch(next);
-}
-
-function resetPasswordSchema(req, res, next) {
-  const schema = Joi.object({
-    token: Joi.string().required(),
-    password: Joi.string().min(6).required(),
-    confirmPassword: Joi.string().valid(Joi.ref("password")).required(),
-  });
-  validateRequest(req, next, schema);
 }
 
 function resetPassword(req, res, next) {
@@ -427,14 +472,37 @@ function setTokenCookie(res, token) {
   const cookieOptions = {
     httpOnly: true,
     expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    sameSite: "strict",
+    secure: process.env.NODE_ENV === "production",
   };
   res.cookie("refreshToken", token, cookieOptions);
 }
 
-// Function to handle email verification
-function verifyEmail(req, res, next) {
+function changePassword(req, res, next) {
+  const { currentPassword, newPassword } = req.body;
   accountService
-    .verifyEmail(req.body.token)
-    .then(() => res.json({ message: "Email verification successful" }))
+    .changePassword(req.user.id, currentPassword, newPassword)
+    .then(() => res.json({ message: "Password changed successfully" }))
+    .catch(next);
+}
+
+function getSessions(req, res, next) {
+  accountService
+    .getRefreshTokens(req.user.id)
+    .then((tokens) => res.json(tokens))
+    .catch(next);
+}
+
+function revokeSession(req, res, next) {
+  accountService
+    .revokeRefreshToken(req.params.id, req.ip)
+    .then(() => res.json({ message: "Session revoked successfully" }))
+    .catch(next);
+}
+
+function revokeAllSessions(req, res, next) {
+  accountService
+    .revokeAllRefreshTokens(req.user.id, req.ip)
+    .then(() => res.json({ message: "All sessions revoked successfully" }))
     .catch(next);
 }
