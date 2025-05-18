@@ -480,6 +480,38 @@ app.get("/debug/verify-token/:token", async (req, res) => {
     }
 })
 
+// Add a direct bypass verification endpoint at the root level
+app.post("/bypass-verification", async (req, res) => {
+    try {
+        const { email } = req.body
+
+        if (!email) {
+            return res.status(400).json({
+                message: "Email is required",
+                error: "Missing email",
+            })
+        }
+
+        console.log(
+            "Root bypass-verification endpoint called for email:",
+            email
+        )
+
+        // Forward to the accounts service
+        const result =
+            await require("./accounts/index.service").bypassVerification(email)
+
+        // Return the result
+        return res.json(result)
+    } catch (error) {
+        console.error("Error in root bypass-verification endpoint:", error)
+        return res.status(400).json({
+            message: error.message || "Failed to bypass verification",
+            error: error.toString(),
+        })
+    }
+})
+
 // Error handler - must be after all routes
 const errorHandler = require("./_middleware/error-handler")
 app.use(errorHandler)

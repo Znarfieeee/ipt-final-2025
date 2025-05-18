@@ -197,9 +197,6 @@ function Login() {
             <div className="max-w-md w-full space-y-8">
                 <div>
                     <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">Sign in to your account</h2>
-                    <p className="mt-2 text-center text-sm text-gray-600">
-                        {USE_FAKE_BACKEND ? "(Using Fake Backend)" : "(Using Real Backend)"}
-                    </p>
 
                     {message && (
                         <div className="mt-4 p-3 bg-green-100 border border-green-300 text-green-600 rounded">
