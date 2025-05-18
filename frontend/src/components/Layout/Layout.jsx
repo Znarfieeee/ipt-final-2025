@@ -2,7 +2,7 @@ import React from "react"
 import { Outlet, Link, Navigate, useLocation, useNavigate } from "react-router-dom"
 import useBackend from "../../api/fakeBackendConnection"
 import { useApi } from "../../api"
-import backendConnection from "../../api/BackendConnection"
+import { useAuth } from "../../context/AuthContext"
 
 // Components
 import { FaRegCircleUser } from "react-icons/fa6"
@@ -22,6 +22,7 @@ const Layout = () => {
     const navigate = useNavigate()
     const backend = useBackend()
     const api = useApi(backend)
+    const { logout } = useAuth()
 
     // Redirect to login if not authenticated
     if (!api.isAuthenticated() && location.pathname !== "/login") {
@@ -35,8 +36,7 @@ const Layout = () => {
 
     const handleLogout = async () => {
         try {
-            await backendConnection.logout()
-            localStorage.removeItem("token")
+            await logout()
             showToast("success", "Logged out successfully!")
             navigate("/login")
         } catch (error) {

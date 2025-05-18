@@ -56,7 +56,7 @@ function Login() {
             } else {
                 try {
                     // Use the auth context login function
-                    await backendConnection.login(email, password)
+                    await login(email, password)
                     showToast("success", "Login successful")
                     navigate("/")
                 } catch (loginError) {

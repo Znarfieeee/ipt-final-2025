@@ -413,7 +413,7 @@ function Employees() {
                                             text=""
                                             tooltipContent="Delete"
                                             onClick={() => handleDelete(employee)}
-                                            variant="destructive"
+                                            variant="danger"
                                         />
                                     </td>
                                 </tr>

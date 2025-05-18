@@ -16,7 +16,6 @@ class BackendConnection {
     async login(email, password) {
         try {
             // Make direct fetch request for login to avoid error handling issues
-            console.log(`Using API URL: ${BASE_URL}/accounts/authenticate`)
             const response = await fetch(`${BASE_URL}/accounts/authenticate`, {
                 method: "POST",
                 headers: {
@@ -528,9 +527,8 @@ class BackendConnection {
                 return { valid: false, error: "No token available" }
             }
 
-            const result = await this.fetchData("/accounts/refresh-token", {
-                method: "POST",
-                body: { token: refreshToken },
+            const result = await this.fetchData("/accounts/validate-token", {
+                method: "GET",
                 skipAuthRedirect: true, // Skip automatic redirect to handle it in the auth context
             })
 
@@ -589,27 +587,27 @@ class BackendConnection {
         if (!endpoint.startsWith("/api") && !endpoint.startsWith("http")) {
             // For account-related endpoints
             if (endpoint.startsWith("/accounts")) {
-                endpoint = `/api${endpoint}`
+                endpoint = `${endpoint}`
             }
             // For employee-related endpoints
             else if (endpoint.startsWith("/employees")) {
-                endpoint = `/api${endpoint}`
+                endpoint = `${endpoint}`
             }
             // For department-related endpoints
             else if (endpoint.startsWith("/departments")) {
-                endpoint = `/api${endpoint}`
+                endpoint = `${endpoint}`
             }
             // For requests-related endpoints
             else if (endpoint.startsWith("/requests")) {
-                endpoint = `/api${endpoint}`
+                endpoint = `${endpoint}`
             }
             // For workflows-related endpoints
             else if (endpoint.startsWith("/workflows")) {
-                endpoint = `/api${endpoint}`
+                endpoint = `${endpoint}`
             }
             // For any other endpoints
             else if (!endpoint.startsWith("/api")) {
-                endpoint = `/api${endpoint}`
+                endpoint = `${endpoint}`
             }
         }
 
