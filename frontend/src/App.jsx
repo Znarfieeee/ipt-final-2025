@@ -2,6 +2,10 @@ import React, { useEffect } from "react"
 import { createBrowserRouter, RouterProvider } from "react-router-dom"
 import { AppProvider } from "./context/AppContext"
 import Login from "./pages/Login"
+import Register from "./pages/Register"
+import VerifyEmail from "./pages/VerifyEmail"
+import ForgotPassword from "./pages/ForgotPassword"
+import ResetPassword from "./pages/ResetPassword"
 import Accounts from "./pages/Accounts"
 import Layout from "./components/Layout/Layout"
 import Department from "./pages/Department"
@@ -47,6 +51,22 @@ function App() {
         {
             path: "/login",
             element: <Login />,
+        },
+        {
+            path: "/register",
+            element: <Register />,
+        },
+        {
+            path: "/verify-email",
+            element: <VerifyEmail />,
+        },
+        {
+            path: "/forgot-password",
+            element: <ForgotPassword />,
+        },
+        {
+            path: "/reset-password",
+            element: <ResetPassword />,
         },
         {
             path: "*",

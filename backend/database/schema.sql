@@ -14,7 +14,11 @@ CREATE TABLE IF NOT EXISTS users (
     status ENUM('Active', 'Inactive') NOT NULL,
     employeeId INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    verificationToken VARCHAR(255),
+    verified DATETIME,
+    resetToken VARCHAR(255),
+    resetTokenExpires DATETIME
 );
 
 -- Departments table
@@ -70,4 +74,7 @@ CREATE TABLE IF NOT EXISTS requests (
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_employees_employeeId ON employees(employeeId);
 CREATE INDEX idx_workflows_employeeId ON workflows(employeeId);
-CREATE INDEX idx_requests_employeeId ON requests(employeeId); 
+CREATE INDEX idx_requests_employeeId ON requests(employeeId);
+
+-- Update admin user to be verified
+UPDATE users SET verified = NOW() WHERE email = 'admin@example.com'; 

@@ -4,7 +4,7 @@ import { showToast } from "../util/alertHelper"
 const BASE_URL =
     window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
         ? "http://localhost:3000"
-        : "https://ipt-final-2025-backend-o7yl.onrender.com"
+        : "https://ipt-final-2025-backend-17bh.onrender.com"
 
 class BackendConnection {
     // Helper method to get the base URL
@@ -16,7 +16,7 @@ class BackendConnection {
     async login(email, password) {
         try {
             // Make direct fetch request for login to avoid error handling issues
-            const response = await fetch(`${BASE_URL}/accounts/authenticate`, {
+            const response = await fetch(`${BASE_URL}/api/auth/authenticate`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -71,10 +71,102 @@ class BackendConnection {
         }
     }
 
+    async register(userData) {
+        try {
+            const response = await fetch(`${BASE_URL}/api/auth/register`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(userData),
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.message || "Registration failed")
+            }
+
+            return data
+        } catch (error) {
+            console.error("Registration error:", error)
+            throw error
+        }
+    }
+
+    async verifyEmail(token) {
+        try {
+            const response = await fetch(`${BASE_URL}/api/auth/verify-email`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ token }),
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.message || "Email verification failed")
+            }
+
+            return data
+        } catch (error) {
+            console.error("Email verification error:", error)
+            throw error
+        }
+    }
+
+    async forgotPassword(email) {
+        try {
+            const response = await fetch(`${BASE_URL}/api/auth/forgot-password`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ email }),
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.message || "Forgot password request failed")
+            }
+
+            return data
+        } catch (error) {
+            console.error("Forgot password error:", error)
+            throw error
+        }
+    }
+
+    async resetPassword(token, password, confirmPassword) {
+        try {
+            const response = await fetch(`${BASE_URL}/api/auth/reset-password`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ token, password, confirmPassword }),
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.message || "Password reset failed")
+            }
+
+            return data
+        } catch (error) {
+            console.error("Password reset error:", error)
+            throw error
+        }
+    }
+
     async logout() {
         try {
             // Call the revoke token endpoint
-            await this.fetchData("/accounts/revoke-token", {
+            await this.fetchData("/api/auth/revoke-token", {
                 method: "POST",
                 body: { token: localStorage.getItem("refreshToken") || localStorage.getItem("token") },
             })
@@ -86,22 +178,6 @@ class BackendConnection {
             localStorage.removeItem("refreshToken")
             localStorage.removeItem("userInfo")
         }
-    }
-
-    // Register new user
-    async register(userData) {
-        return this.fetchData("/accounts/register", {
-            method: "POST",
-            body: userData,
-        })
-    }
-
-    // Verify email
-    async verifyEmail(token) {
-        return this.fetchData("/accounts/verify-email", {
-            method: "POST",
-            body: { token },
-        })
     }
 
     // Users management
