@@ -26,6 +26,7 @@ module.exports = {
     getRefreshTokens,
     revokeRefreshToken,
     revokeAllRefreshTokens,
+    bypassVerification,
 }
 
 async function authenticate({ email, password, ipAddress }) {
@@ -764,5 +765,35 @@ async function revokeAllRefreshTokens(userId, ipAddress) {
     } catch (error) {
         console.error("Error revoking all tokens:", error)
         throw error
+    }
+}
+
+async function bypassVerification(email) {
+    // Find the account by email
+    const account = await db.User.findOne({ where: { email } })
+
+    if (!account) {
+        throw new Error("No account found with this email address")
+    }
+
+    // Check if already verified
+    if (account.verified) {
+        return {
+            message: "This account is already verified. You can log in.",
+            alreadyVerified: true,
+        }
+    }
+
+    // Mark as verified
+    account.verified = Date.now()
+    account.verificationToken = null
+    account.status = "Active" // Activate account after verification
+    await account.save()
+
+    console.log(`Email verification bypassed for user: ${email}`)
+
+    return {
+        message: "Email verification bypassed successfully. You can now login.",
+        success: true,
     }
 }
