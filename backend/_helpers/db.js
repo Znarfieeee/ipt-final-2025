@@ -1,14 +1,14 @@
 const { Sequelize } = require("sequelize");
 const config = require("../config.js");
 
-// Database configuration - no logging
+// Database configuration with fallback values
 const sequelize = new Sequelize({
   dialect: "mysql",
-  host: config.database.host,
-  port: config.database.port,
-  username: config.database.user,
-  password: config.database.password,
-  database: config.database.database,
+  host: config.database.host || "localhost",
+  port: config.database.port || 3306,
+  username: config.database.user || "root",
+  password: config.database.password || "",
+  database: config.database.database || "fullstack_db",
   logging: false, // Disable logging
   pool: {
     max: 5, // Maximum number of connections in pool
@@ -19,9 +19,16 @@ const sequelize = new Sequelize({
 });
 
 // Test database connection on startup
-sequelize.authenticate().catch(() => {
-  // Silent failure - error handled by application
-});
+sequelize
+  .authenticate()
+  .then(() => {
+    console.log("Database connection established successfully.");
+  })
+  .catch((err) => {
+    console.warn("Database connection failed:", err.message);
+    console.log("Application will attempt to run without persistent database.");
+    // Silent failure - error handled by application
+  });
 
 const db = {
   sequelize,

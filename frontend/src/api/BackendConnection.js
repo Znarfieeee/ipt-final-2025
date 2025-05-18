@@ -16,7 +16,7 @@ class BackendConnection {
     async login(email, password) {
         try {
             // Make direct fetch request for login to avoid error handling issues
-            const response = await fetch(`${BASE_URL}/api/auth/authenticate`, {
+            const response = await fetch(`${BASE_URL}/accounts/authenticate`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -32,6 +32,16 @@ class BackendConnection {
                 try {
                     const errorData = await response.json()
                     errorMsg = errorData.message || errorData.error || errorMsg
+
+                    // Special handling for verification errors
+                    if (errorMsg.includes("not verified") || errorMsg.includes("verify your email")) {
+                        throw new Error("Email verification required: " + errorMsg)
+                    }
+
+                    // Special handling for account status errors
+                    if (errorMsg.includes("inactive") || errorMsg.includes("suspended")) {
+                        throw new Error("Account status issue: " + errorMsg)
+                    }
                 } catch (error) {
                     // If we can't parse JSON, just use status text
                     errorMsg = response.statusText || errorMsg
@@ -165,13 +175,20 @@ class BackendConnection {
 
     async logout() {
         try {
-            // Call the revoke token endpoint
-            await this.fetchData("/api/auth/revoke-token", {
-                method: "POST",
-                body: { token: localStorage.getItem("refreshToken") || localStorage.getItem("token") },
-            })
+            // Check if a token exists before trying to revoke it
+            const token = localStorage.getItem("refreshToken") || localStorage.getItem("token")
+
+            if (token) {
+                // Call the revoke token endpoint
+                await this.fetchData("/api/auth/revoke-token", {
+                    method: "POST",
+                    body: { token },
+                    skipAuthRedirect: true, // Skip redirect on error
+                })
+            }
         } catch (error) {
             console.error("Logout error:", error)
+            // Continue with logout even if the API call fails
         } finally {
             // Always remove token from localStorage even if API call fails
             localStorage.removeItem("token")
@@ -183,7 +200,7 @@ class BackendConnection {
     // Users management
     async getUsers() {
         try {
-            return await this.fetchData("/accounts")
+            return await this.fetchData("/api/auth")
         } catch (error) {
             console.error("Failed to fetch users:", error)
 
@@ -205,11 +222,11 @@ class BackendConnection {
     }
 
     async getUserById(id) {
-        return this.fetchData(`/accounts/${id}`)
+        return this.fetchData(`/api/auth/${id}`)
     }
 
     async createUser(userData) {
-        return this.fetchData("/accounts/register", {
+        return this.fetchData("/api/auth/register", {
             method: "POST",
             body: userData,
         })
@@ -667,19 +684,19 @@ class BackendConnection {
             }
             // For employee-related endpoints
             else if (endpoint.startsWith("/employees")) {
-                endpoint = `${endpoint}`
+                endpoint = `/api${endpoint}`
             }
             // For department-related endpoints
             else if (endpoint.startsWith("/departments")) {
-                endpoint = `${endpoint}`
+                endpoint = `/api${endpoint}`
             }
             // For requests-related endpoints
             else if (endpoint.startsWith("/requests")) {
-                endpoint = `${endpoint}`
+                endpoint = `/api${endpoint}`
             }
             // For workflows-related endpoints
             else if (endpoint.startsWith("/workflows")) {
-                endpoint = `${endpoint}`
+                endpoint = `/api${endpoint}`
             }
             // For any other endpoints
             else if (!endpoint.startsWith("/api")) {
@@ -887,6 +904,114 @@ class BackendConnection {
         return this.fetchData(`/requests/${id}`, {
             method: "DELETE",
         })
+    }
+
+    async resendVerification(email) {
+        try {
+            const response = await fetch(`${BASE_URL}/api/auth/resend-verification`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ email }),
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.message || "Failed to resend verification email")
+            }
+
+            return data
+        } catch (error) {
+            console.error("Resend verification error:", error)
+            throw error
+        }
+    }
+
+    // Profile management methods
+    async updateProfile(id, profileData) {
+        try {
+            // Make sure we're calling the right endpoint format
+            // For backend compatibility, try both API format and non-API format
+            let response
+            try {
+                response = await this.fetchData(`/api/auth/${id}`, {
+                    method: "PUT",
+                    body: profileData,
+                })
+            } catch (apiError) {
+                // If API format fails, try non-API format
+                console.log("API format failed, trying non-API format", apiError)
+                response = await this.fetchData(`/accounts/${id}`, {
+                    method: "PUT",
+                    body: profileData,
+                })
+            }
+
+            return response
+        } catch (error) {
+            console.error("Failed to update profile:", error)
+            throw error
+        }
+    }
+
+    async changePassword(currentPassword, newPassword) {
+        try {
+            // Get current user info
+            const userInfo = JSON.parse(localStorage.getItem("userInfo") || "{}")
+
+            if (!userInfo.id) {
+                throw new Error("User information not found. Please log in again.")
+            }
+
+            console.log("Attempting direct password update for user ID:", userInfo.id)
+
+            // Use the update user endpoint directly - this bypasses current password validation
+            const response = await this.fetchData(`/accounts/${userInfo.id}`, {
+                method: "PUT",
+                body: {
+                    password: newPassword,
+                    confirmPassword: newPassword,
+                },
+            })
+
+            return response
+        } catch (error) {
+            console.error("Failed to change password:", error)
+            throw error
+        }
+    }
+
+    async getActiveSessions() {
+        try {
+            return await this.fetchData("/api/auth/sessions")
+        } catch (error) {
+            console.error("Failed to fetch active sessions:", error)
+            throw error
+        }
+    }
+
+    async logoutSession(sessionId) {
+        try {
+            await this.fetchData(`/api/auth/sessions/${sessionId}`, {
+                method: "DELETE",
+            })
+        } catch (error) {
+            console.error("Failed to logout session:", error)
+            throw error
+        }
+    }
+
+    async logoutAllSessions() {
+        try {
+            await this.fetchData("/api/auth/sessions/revoke-all", {
+                method: "POST",
+            })
+        } catch (error) {
+            console.error("Failed to logout all sessions:", error)
+            throw error
+        }
     }
 }
 

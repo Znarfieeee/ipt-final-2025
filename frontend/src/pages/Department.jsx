@@ -15,7 +15,7 @@ import { IoAddSharp } from "react-icons/io5"
 import { FaTrash } from "react-icons/fa"
 import { showToast } from "../util/alertHelper"
 
-function Department() {
+function Department({ readOnly = false }) {
     const [depts, setDepts] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
@@ -220,15 +220,17 @@ function Department() {
             <div className="bg-white shadow-md rounded-lg p-6">
                 <div id="table-header" className="flex flex-row justify-between items-center mb-2">
                     <h1 className="text-2xl font-bold capitalize text-foreground">DEPARTMENTS</h1>
-                    <ButtonWithIcon
-                        icon={IoAddSharp}
-                        text="Department"
-                        tooltipContent="Add New Department"
-                        onClick={handleAdd}
-                        variant="primary"
-                        isLoading={isAddButtonLoading}
-                        loadingText="Adding..."
-                    />
+                    {!readOnly && (
+                        <ButtonWithIcon
+                            icon={IoAddSharp}
+                            text="Department"
+                            tooltipContent="Add New Department"
+                            onClick={handleAdd}
+                            variant="primary"
+                            isLoading={isAddButtonLoading}
+                            loadingText="Adding..."
+                        />
+                    )}
                 </div>
                 <hr />
                 {loading && (
@@ -250,9 +252,11 @@ function Department() {
                             <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
                                 Employee Count
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
-                                Actions
-                            </th>
+                            {!readOnly && (
+                                <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
+                                    Actions
+                                </th>
+                            )}
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -268,27 +272,29 @@ function Department() {
                                     <td className="px-6 py-4 whitespace-nowrap text-start text-foreground">
                                         {dept.employeeCount || 0}
                                     </td>
-                                    <td className="flex gap-2 items-center px-6 py-4 whitespace-nowrap text-start">
-                                        <ButtonWithIcon
-                                            icon={CiEdit}
-                                            text=""
-                                            tooltipContent="Edit Department"
-                                            onClick={() => handleEdit(dept)}
-                                            variant="primary"
-                                            isLoading={actionButtonsLoading[dept.id]}
-                                            loadingText="Editing..."
-                                        />
-                                        <DeleteConfirmation
-                                            onConfirm={() => handleDelete(dept)}
-                                            itemName={`department "${dept.name}"`}
-                                            itemType="department"
-                                        />
-                                    </td>
+                                    {!readOnly && (
+                                        <td className="flex gap-2 items-center px-6 py-4 whitespace-nowrap text-start">
+                                            <ButtonWithIcon
+                                                icon={CiEdit}
+                                                text=""
+                                                tooltipContent="Edit Department"
+                                                onClick={() => handleEdit(dept)}
+                                                variant="primary"
+                                                isLoading={actionButtonsLoading[dept.id]}
+                                                loadingText="Editing..."
+                                            />
+                                            <DeleteConfirmation
+                                                onConfirm={() => handleDelete(dept)}
+                                                itemName={`department "${dept.name}"`}
+                                                itemType="department"
+                                            />
+                                        </td>
+                                    )}
                                 </tr>
                             ))
                         ) : (
                             <tr>
-                                <td colSpan="4" className="px-6 py-4 text-center text-destructive">
+                                <td colSpan={readOnly ? "3" : "4"} className="px-6 py-4 text-center text-destructive">
                                     {loading ? "Loading departments..." : "No departments found"}
                                 </td>
                             </tr>

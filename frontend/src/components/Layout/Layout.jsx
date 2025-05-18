@@ -22,7 +22,7 @@ const Layout = () => {
     const navigate = useNavigate()
     const backend = useBackend()
     const api = useApi(backend)
-    const { logout } = useAuth()
+    const { user, logout } = useAuth()
 
     // Redirect to login if not authenticated
     if (!api.isAuthenticated() && location.pathname !== "/login") {
@@ -45,6 +45,9 @@ const Layout = () => {
         }
     }
 
+    // Check if user is admin
+    const isAdmin = user?.role === "Admin"
+
     return (
         <div className="min-h-screen flex flex-col">
             <nav className="bg-slate-800 px-8 py-4 shadow-md">
@@ -57,25 +60,46 @@ const Layout = () => {
                     <div className="flex flex-col md:flex-row items-center gap-6">
                         {api.isAuthenticated() ? (
                             <>
-                                <Link to="/accounts" className="text-gray-200 hover:text-blue-400 transition-colors">
-                                    Accounts
-                                </Link>
-                                <Link to="/employees" className="text-gray-200 hover:text-blue-400 transition-colors">
+                                {isAdmin && (
+                                    <Link to="/accounts" className="text-gray-200 hover:text-blue-400 transition-colors">
+                                        Accounts
+                                    </Link>
+                                )}
+                                <Link 
+                                    to={isAdmin ? "/employees/manage" : "/employees"} 
+                                    className="text-gray-200 hover:text-blue-400 transition-colors"
+                                >
                                     Employees
                                 </Link>
-                                <Link to="/departments" className="text-gray-200 hover:text-blue-400 transition-colors">
+                                <Link 
+                                    to={isAdmin ? "/departments/manage" : "/departments"} 
+                                    className="text-gray-200 hover:text-blue-400 transition-colors"
+                                >
                                     Departments
                                 </Link>
-                                <Link to="/requests" className="text-gray-200 hover:text-blue-400 transition-colors">
+                                <Link 
+                                    to={isAdmin ? "/requests/manage" : "/requests"} 
+                                    className="text-gray-200 hover:text-blue-400 transition-colors"
+                                >
                                     Requests
                                 </Link>
-                                <button
-                                    onClick={handleLogout}
-                                    className="flex items-center gap-1 text-gray-200 hover:text-red-400 transition-colors ml-4"
-                                >
-                                    <RiLogoutCircleLine className="text-lg" />
-                                    <span>Logout</span>
-                                </button>
+                                
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger className="flex items-center gap-1 text-gray-200 hover:text-blue-400 transition-colors">
+                                        <FaRegCircleUser className="text-lg" />
+                                        <span>Account</span>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent>
+                                        <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem asChild>
+                                            <Link to="/profile" className="cursor-pointer">Profile</Link>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
+                                            Logout
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </>
                         ) : (
                             <>

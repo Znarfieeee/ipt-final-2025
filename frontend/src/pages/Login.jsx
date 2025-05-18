@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useEffect } from "react"
 import { Link, useNavigate, useLocation } from "react-router-dom"
 import { showToast } from "../util/alertHelper"
@@ -16,6 +15,7 @@ function Login() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState("")
     const [message, setMessage] = useState("")
+    const [needsVerification, setNeedsVerification] = useState(false)
     const { fakeFetch } = useFakeBackend()
     const { login } = useAuth()
 
@@ -43,6 +43,7 @@ function Login() {
         e.preventDefault()
         setLoading(true)
         setError("")
+        setNeedsVerification(false)
 
         try {
             const email = emailRef.current.value
@@ -64,6 +65,11 @@ function Login() {
                 } else {
                     setError(result.message || "Invalid credentials")
                     showToast("error", result.message || "Invalid credentials.")
+                    
+                    // Check if needs verification
+                    if (result.message && (result.message.includes("not verified") || result.message.includes("verify your email"))) {
+                        setNeedsVerification(true)
+                    }
                 }
             } else {
                 try {
@@ -75,14 +81,46 @@ function Login() {
                     console.error("Direct login error:", loginError)
                     setError(loginError.message)
                     showToast("error", loginError.message)
+                    
+                    // Check if needs verification
+                    if (loginError.message && (loginError.message.includes("not verified") || loginError.message.includes("verify your email"))) {
+                        setNeedsVerification(true)
+                    }
                 }
             }
         } catch (err) {
             console.error("Login error:", err)
             setError(err.message || "Unknown error")
             showToast("error", "Login failed: " + (err.message || "Unknown error"))
+            
+            // Check if needs verification
+            if (err.message && (err.message.includes("not verified") || err.message.includes("verify your email"))) {
+                setNeedsVerification(true)
+            }
         } finally {
             setLoading(false)
+        }
+    }
+    
+    const handleResendVerification = async () => {
+        if (!emailRef.current.value) {
+            setError("Please enter your email address to resend verification");
+            return;
+        }
+        
+        setLoading(true);
+        try {
+            // Call an API endpoint to resend verification email
+            await backendConnection.resendVerification(emailRef.current.value);
+            setMessage("Verification email has been resent. Please check your email.");
+            setError("");
+            setNeedsVerification(false);
+            showToast("success", "Verification email sent");
+        } catch (err) {
+            setError("Failed to resend verification: " + (err.message || "Unknown error"));
+            showToast("error", "Failed to resend verification");
+        } finally {
+            setLoading(false);
         }
     }
 
@@ -100,7 +138,19 @@ function Login() {
                     )}
                     
                     {error && (
-                        <div className="mt-2 p-2 bg-red-100 border border-red-300 text-red-600 rounded">{error}</div>
+                        <div className="mt-2 p-2 bg-red-100 border border-red-300 text-red-600 rounded">
+                            {error}
+                            {needsVerification && (
+                                <div className="mt-2">
+                                    <button 
+                                        onClick={handleResendVerification}
+                                        className="text-blue-600 hover:text-blue-800 underline"
+                                    >
+                                        Resend verification email
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
                 <form className="mt-8 space-y-6" onSubmit={handleSubmit}>

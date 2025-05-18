@@ -5,27 +5,45 @@ const config = require("../config.js");
 
 // Database configuration for direct MySQL connection
 const dbConfig = {
-  host: config.database.host,
-  user: config.database.user,
-  password: config.database.password,
+  host: config.database.host || "localhost",
+  user: config.database.user || "root",
+  password: config.database.password || "",
   multipleStatements: true,
 };
 
 async function initializeDatabase() {
   try {
+    console.log("Attempting to connect to MySQL with:", {
+      host: dbConfig.host,
+      user: dbConfig.user,
+      // Not logging password for security
+      database: config.database.database || "fullstack_db",
+    });
+
     // Create connection
     const connection = await mysql.createConnection(dbConfig);
 
     // Create database if it doesn't exist
     await connection.query(
-      `CREATE DATABASE IF NOT EXISTS ${config.database.database}`
+      `CREATE DATABASE IF NOT EXISTS ${
+        config.database.database || "fullstack_db"
+      }`
     );
 
     // Close the connection
     await connection.end();
 
+    console.log("Database initialization successful");
     return true;
   } catch (error) {
+    console.error("Database initialization error:", error.message);
+
+    // For development purposes only, allow proceeding without database
+    if (process.env.NODE_ENV !== "production") {
+      console.log("Continuing without database connection in development mode");
+      return true;
+    }
+
     throw error;
   }
 }
