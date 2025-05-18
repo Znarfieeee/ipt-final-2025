@@ -9,6 +9,7 @@ import EmployeeAddForm from "../components/EmployeeAddEditForm"
 import ButtonWithIcon from "../components/ButtonWithIcon"
 import TransferForm from "../components/TransferForm"
 import WorkflowsForm from "../components/WorkflowsForm"
+import { DeleteConfirmation } from "../components/ui/delete-confirmation"
 
 // UI Libraries
 import { GoGitPullRequest, GoWorkflow } from "react-icons/go"
@@ -285,22 +286,20 @@ function Employees() {
     }
 
     const handleDelete = async employee => {
-        if (window.confirm(`Are you sure you want to delete employee ${employee.employeeId}?`)) {
-            try {
-                if (!USE_FAKE_BACKEND) {
-                    await backendConnection.deleteEmployee(employee.id)
-                } else {
-                    // Using fake backend
-                    await fakeFetch(`/employees/${employee.id}`, {
-                        method: "DELETE",
-                    })
-                }
-                showToast("success", "Employee deleted successfully!")
-                await loadEmployeesData()
-            } catch (error) {
-                console.error("Error deleting employee:", error)
-                showToast("error", error.message || "Failed to delete employee")
+        try {
+            if (!USE_FAKE_BACKEND) {
+                await backendConnection.deleteEmployee(employee.id)
+            } else {
+                // Using fake backend
+                await fakeFetch(`/employees/${employee.id}`, {
+                    method: "DELETE",
+                })
             }
+            showToast("success", "Employee deleted successfully!")
+            await loadEmployeesData()
+        } catch (error) {
+            console.error("Error deleting employee:", error)
+            showToast("error", error.message || "Failed to delete employee")
         }
     }
 
@@ -408,12 +407,10 @@ function Employees() {
                                             onClick={() => handleEdit(employee)}
                                             variant="primary"
                                         />
-                                        <ButtonWithIcon
-                                            icon={FaTrash}
-                                            text=""
-                                            tooltipContent="Delete"
-                                            onClick={() => handleDelete(employee)}
-                                            variant="danger"
+                                        <DeleteConfirmation
+                                            onConfirm={() => handleDelete(employee)}
+                                            itemName={`employee ${employee.employeeId}`}
+                                            itemType="employee"
                                         />
                                     </td>
                                 </tr>

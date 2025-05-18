@@ -7,6 +7,7 @@ import "../index.css"
 // Components
 import DepartmentAddEditForm from "../components/DepartmentAddEditForm"
 import ButtonWithIcon from "../components/ButtonWithIcon"
+import { DeleteConfirmation } from "../components/ui/delete-confirmation"
 
 // UI Libraries
 import { CiEdit } from "react-icons/ci"
@@ -87,41 +88,35 @@ function Department() {
     }
 
     const handleDelete = async department => {
-        if (
-            window.confirm(
-                `Are you sure you want to delete department "${department.name}"? This action cannot be undone.`
-            )
-        ) {
-            try {
-                // Set loading state for this department
-                setActionButtonsLoading(prev => ({ ...prev, [department.id]: true }))
+        try {
+            // Set loading state for this department
+            setActionButtonsLoading(prev => ({ ...prev, [department.id]: true }))
 
-                if (!USE_FAKE_BACKEND) {
-                    // Use real backend
-                    await backendConnection.deleteDepartment(department.id)
-                } else {
-                    // Use fake backend
-                    const response = await fakeFetch(`/departments/${department.id}`, {
-                        method: "DELETE",
-                    })
+            if (!USE_FAKE_BACKEND) {
+                // Use real backend
+                await backendConnection.deleteDepartment(department.id)
+            } else {
+                // Use fake backend
+                const response = await fakeFetch(`/departments/${department.id}`, {
+                    method: "DELETE",
+                })
 
-                    if (!response.ok) {
-                        throw new Error("Failed to delete department")
-                    }
+                if (!response.ok) {
+                    throw new Error("Failed to delete department")
                 }
-
-                // Show success message
-                showToast("success", "Department deleted successfully!")
-
-                // Refresh departments list
-                await fetchDepartments()
-            } catch (err) {
-                console.error("Error deleting department:", err)
-                showToast("error", err.message || "Failed to delete department")
-            } finally {
-                // Clear loading state
-                setActionButtonsLoading(prev => ({ ...prev, [department.id]: false }))
             }
+
+            // Show success message
+            showToast("success", "Department deleted successfully!")
+
+            // Refresh departments list
+            await fetchDepartments()
+        } catch (err) {
+            console.error("Error deleting department:", err)
+            showToast("error", err.message || "Failed to delete department")
+        } finally {
+            // Clear loading state
+            setActionButtonsLoading(prev => ({ ...prev, [department.id]: false }))
         }
     }
 
@@ -273,24 +268,20 @@ function Department() {
                                     <td className="px-6 py-4 whitespace-nowrap text-start text-foreground">
                                         {dept.employeeCount || 0}
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-start">
+                                    <td className="flex gap-2 items-center px-6 py-4 whitespace-nowrap text-start">
                                         <ButtonWithIcon
                                             icon={CiEdit}
-                                            text="Edit"
+                                            text=""
                                             tooltipContent="Edit Department"
                                             onClick={() => handleEdit(dept)}
                                             variant="primary"
                                             isLoading={actionButtonsLoading[dept.id]}
                                             loadingText="Editing..."
                                         />
-                                        <ButtonWithIcon
-                                            icon={FaTrash}
-                                            text="Delete"
-                                            tooltipContent="Delete Department"
-                                            onClick={() => handleDelete(dept)}
-                                            variant="danger"
-                                            isLoading={actionButtonsLoading[dept.id]}
-                                            loadingText="Deleting..."
+                                        <DeleteConfirmation
+                                            onConfirm={() => handleDelete(dept)}
+                                            itemName={`department "${dept.name}"`}
+                                            itemType="department"
                                         />
                                     </td>
                                 </tr>
