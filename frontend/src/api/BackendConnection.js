@@ -42,7 +42,7 @@ class BackendConnection {
                     if (errorMsg.includes("inactive") || errorMsg.includes("suspended")) {
                         throw new Error("Account status issue: " + errorMsg)
                     }
-                } catch (error) {
+                } catch (_parseError) {
                     // If we can't parse JSON, just use status text
                     errorMsg = response.statusText || errorMsg
                 }
@@ -83,10 +83,15 @@ class BackendConnection {
 
     async register(userData) {
         try {
+            // Get the current origin for proper email verification links
+            const origin = window.location.origin
+            console.log("Registering with origin:", origin)
+
             const response = await fetch(`${BASE_URL}/api/auth/register`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
+                    Origin: origin,
                 },
                 body: JSON.stringify(userData),
             })
@@ -105,44 +110,84 @@ class BackendConnection {
     }
 
     async verifyEmail(token) {
+        if (!token) {
+            throw new Error("Verification token is missing")
+        }
+
+        console.log("Verifying email with token:", token)
+
         try {
-            // Try both endpoint formats for maximum compatibility
-            try {
-                const response = await fetch(`${BASE_URL}/api/auth/verify-email`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ token }),
-                })
+            // Get the backend URL
+            const backendUrl = this.getBaseUrl()
+            console.log("Using backend URL:", backendUrl)
 
-                const data = await response.json()
+            // Try all possible endpoint formats for maximum compatibility
+            const endpoints = [
+                `${backendUrl}/api/auth/verify-email`,
+                `${backendUrl}/accounts/verify-email`,
+                `${backendUrl}/verify-email`,
+            ]
 
-                if (!response.ok) {
-                    throw new Error(data.message || "Email verification failed")
-                }
-
-                return data
-            } catch (error) {
-                // If the first endpoint fails, try the accounts endpoint
-                console.warn("First verification endpoint failed, trying alternative", error)
-
-                const response = await fetch(`${BASE_URL}/accounts/verify-email`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ token }),
-                })
-
-                const data = await response.json()
-
-                if (!response.ok) {
-                    throw new Error(data.message || "Email verification failed")
-                }
-
-                return data
+            // For deployed environments, also try the absolute URLs
+            if (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+                // Add direct URLs to the backend
+                endpoints.push(
+                    `https://ipt-final-2025-backend-o7yl.onrender.com/api/auth/verify-email`,
+                    `https://ipt-final-2025-backend-o7yl.onrender.com/accounts/verify-email`,
+                    `https://ipt-final-2025-backend-o7yl.onrender.com/verify-email`
+                )
             }
+
+            console.log("Will try these endpoints:", endpoints)
+            let lastError = null
+
+            // Try each endpoint in sequence
+            for (const endpoint of endpoints) {
+                try {
+                    console.log(`Trying verification endpoint: ${endpoint}`)
+
+                    const response = await fetch(endpoint, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ token }),
+                        // Add credentials to handle cookies if needed
+                        credentials: "include",
+                    })
+
+                    // Log the response status
+                    console.log(`Endpoint ${endpoint} response status:`, response.status)
+
+                    // Try to parse the response as JSON
+                    let data
+                    try {
+                        data = await response.json()
+                        console.log(`Endpoint ${endpoint} response data:`, data)
+                    } catch (parseError) {
+                        console.warn(`Could not parse response from ${endpoint} as JSON:`, parseError)
+                        // Try to get text content
+                        const text = await response.text()
+                        data = { message: text || "No response data" }
+                    }
+
+                    if (!response.ok) {
+                        console.warn(`Endpoint ${endpoint} returned error:`, data)
+                        lastError = new Error(data.message || `Verification failed with status ${response.status}`)
+                        continue // Try the next endpoint
+                    }
+
+                    console.log(`Verification successful with endpoint: ${endpoint}`)
+                    return data
+                } catch (error) {
+                    console.warn(`Error with endpoint ${endpoint}:`, error)
+                    lastError = error
+                    // Continue to the next endpoint
+                }
+            }
+
+            // If we get here, all endpoints failed
+            throw lastError || new Error("Email verification failed with all endpoints")
         } catch (error) {
             console.error("Email verification error:", error)
             throw error
@@ -504,65 +549,61 @@ class BackendConnection {
             RequestItems: requestItems,
         }
 
+        // Use direct fetch for more reliable results
+        const response = await fetch(`${BASE_URL}/api/requests/${id}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                ...(localStorage.getItem("token")
+                    ? {
+                          Authorization: `Bearer ${localStorage.getItem("token")}`,
+                      }
+                    : {}),
+            },
+            body: JSON.stringify(cleanedData),
+        })
+
+        if (!response.ok) {
+            const errorText = await response.text()
+            throw new Error(`Update failed: ${response.status} ${errorText || ""}`)
+        }
+
+        // Parse the response
+        let responseData
         try {
-            // Use direct fetch for more reliable results
-            const response = await fetch(`${BASE_URL}/api/requests/${id}`, {
-                method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...(localStorage.getItem("token")
-                        ? {
-                              Authorization: `Bearer ${localStorage.getItem("token")}`,
-                          }
-                        : {}),
-                },
-                body: JSON.stringify(cleanedData),
-            })
+            responseData = await response.json()
+        } catch (_jsonError) {
+            // If parse fails, create a basic response
+            responseData = { id, ...cleanedData }
+        }
 
-            if (!response.ok) {
-                const errorText = await response.text()
-                throw new Error(`Update failed: ${response.status} ${errorText || ""}`)
-            }
+        // Verify items are in response
+        let finalItems = responseData.requestItems || responseData.RequestItems || []
 
-            // Parse the response
-            let responseData
+        // If response is missing items but we had items originally, fetch them directly
+        if (finalItems.length === 0 && originalItems.length > 0) {
             try {
-                responseData = await response.json()
-            } catch (_) {
-                // If parse fails, create a basic response
-                responseData = { id, ...cleanedData }
-            }
+                // Get items directly from items endpoint
+                const fetchedItems = await this.getRequestItems(id)
+                if (fetchedItems && fetchedItems.length > 0) {
+                    finalItems = fetchedItems
 
-            // Verify items are in response
-            let finalItems = responseData.requestItems || responseData.RequestItems || []
-
-            // If response is missing items but we had items originally, fetch them directly
-            if (finalItems.length === 0 && originalItems.length > 0) {
-                try {
-                    // Get items directly from items endpoint
-                    const fetchedItems = await this.getRequestItems(id)
-                    if (fetchedItems && fetchedItems.length > 0) {
-                        finalItems = fetchedItems
-
-                        // Update response with fetched items
-                        responseData.requestItems = finalItems
-                        responseData.RequestItems = finalItems
-                    } else {
-                        // Fall back to original items if direct fetch returned nothing
-                        responseData.requestItems = originalItems
-                        responseData.RequestItems = originalItems
-                    }
-                } catch (_) {
-                    // Use original items as fallback
+                    // Update response with fetched items
+                    responseData.requestItems = finalItems
+                    responseData.RequestItems = finalItems
+                } else {
+                    // Fall back to original items if direct fetch returned nothing
                     responseData.requestItems = originalItems
                     responseData.RequestItems = originalItems
                 }
+            } catch (_fetchError) {
+                // Use original items as fallback
+                responseData.requestItems = originalItems
+                responseData.RequestItems = originalItems
             }
-
-            return responseData
-        } catch (error) {
-            throw error
         }
+
+        return responseData
     }
 
     // FIXED: Add new helper method to properly clean and format request items
@@ -930,31 +971,77 @@ class BackendConnection {
 
     async resendVerification(email) {
         try {
+            // Get the current origin for proper email verification links
+            const origin = window.location.origin
+            console.log("Resending verification with origin:", origin)
+
             // Try using the fetchData helper first for better error handling
             try {
                 return await this.fetchData("/accounts/resend-verification", {
                     method: "POST",
                     body: { email },
+                    headers: {
+                        Origin: origin,
+                    },
                 })
             } catch (fetchError) {
                 // Fall back to direct fetch if fetchData fails
                 console.warn("Falling back to direct fetch for resend verification:", fetchError)
 
-                const response = await fetch(`${BASE_URL}/accounts/resend-verification`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ email }),
-                })
+                // Try multiple endpoints for maximum compatibility
+                const endpoints = [
+                    `${BASE_URL}/accounts/resend-verification`,
+                    `${BASE_URL}/api/auth/resend-verification`,
+                    `${BASE_URL}/resend-verification`,
+                ]
 
-                const data = await response.json()
-
-                if (!response.ok) {
-                    throw new Error(data.message || "Failed to resend verification email")
+                // For deployed environments, also try the absolute URLs
+                if (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+                    endpoints.push(
+                        `https://ipt-final-2025-backend-o7yl.onrender.com/accounts/resend-verification`,
+                        `https://ipt-final-2025-backend-o7yl.onrender.com/api/auth/resend-verification`,
+                        `https://ipt-final-2025-backend-o7yl.onrender.com/resend-verification`
+                    )
                 }
 
-                return data
+                let lastError = null
+
+                // Try each endpoint in sequence
+                for (const endpoint of endpoints) {
+                    try {
+                        console.log(`Trying resend verification endpoint: ${endpoint}`)
+
+                        const response = await fetch(endpoint, {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                Origin: origin,
+                            },
+                            body: JSON.stringify({ email }),
+                            credentials: "include",
+                        })
+
+                        const data = await response.json()
+
+                        if (!response.ok) {
+                            console.warn(`Endpoint ${endpoint} returned error:`, data)
+                            lastError = new Error(
+                                data.message || `Resend verification failed with status ${response.status}`
+                            )
+                            continue // Try the next endpoint
+                        }
+
+                        console.log(`Resend verification successful with endpoint: ${endpoint}`)
+                        return data
+                    } catch (endpointError) {
+                        console.warn(`Error with endpoint ${endpoint}:`, endpointError)
+                        lastError = endpointError
+                        // Continue to the next endpoint
+                    }
+                }
+
+                // If we get here, all endpoints failed
+                throw lastError || new Error("Failed to resend verification email with all endpoints")
             }
         } catch (error) {
             console.error("Resend verification error:", error)

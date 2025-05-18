@@ -26,6 +26,7 @@ app.use(cookieParser())
 // Allow multiple origins for CORS
 const allowedOrigins = [
     "https://ipt-final-2025-espelita.onrender.com",
+    "https://ipt-final-2025.onrender.com",
     "http://localhost:5173",
     "http://localhost:3000",
 ]
@@ -34,12 +35,20 @@ const allowedOrigins = [
 app.use(
     cors({
         origin: function (origin, callback) {
+            // For requests with no origin (like mobile apps or curl requests)
             if (!origin) return callback(null, true)
+
+            console.log("Request from origin:", origin)
 
             // Check if origin is allowed
             if (allowedOrigins.indexOf(origin) === -1) {
-                return callback(null, true) // Just allow all origins for now
+                console.log(
+                    `Origin ${origin} not in allowed list, but allowing anyway for compatibility`
+                )
+                return callback(null, true) // Allow all origins for maximum compatibility
             }
+
+            console.log(`Origin ${origin} is allowed`)
             return callback(null, true)
         },
         credentials: true,
@@ -376,6 +385,99 @@ app.use("/requests", authenticateToken, (req, res, next) => {
 })
 app.use("/workflows", authenticateToken, (req, res, next) => {
     next()
+})
+
+// Add a direct verification endpoint at the root level for maximum compatibility
+app.post("/verify-email", async (req, res) => {
+    try {
+        console.log(
+            "Root verify-email endpoint called with token:",
+            req.body.token
+        )
+
+        // Forward to the accounts service
+        const result = await require("./accounts/index.service").verifyEmail(
+            req.body.token
+        )
+
+        // Return the result
+        return res.json(result)
+    } catch (error) {
+        console.error("Error in root verify-email endpoint:", error)
+        return res.status(400).json({
+            message: error.message || "Verification failed",
+            error: error.toString(),
+        })
+    }
+})
+
+// Also add a direct resend verification endpoint at the root level
+app.post("/resend-verification", async (req, res) => {
+    try {
+        console.log(
+            "Root resend-verification endpoint called for email:",
+            req.body.email
+        )
+
+        // Forward to the accounts service
+        const result =
+            await require("./accounts/index.service").resendVerificationEmail(
+                req.body.email,
+                req.get("origin")
+            )
+
+        // Return the result
+        return res.json(result)
+    } catch (error) {
+        console.error("Error in root resend-verification endpoint:", error)
+        return res.status(400).json({
+            message: error.message || "Failed to resend verification email",
+            error: error.toString(),
+        })
+    }
+})
+
+// Add a debug endpoint to check verification tokens
+app.get("/debug/verify-token/:token", async (req, res) => {
+    try {
+        const token = req.params.token
+        console.log("Debug endpoint called for token:", token)
+
+        // Check if the token exists in the database
+        const db = require("./_helpers/db")
+        const user = await db.User.findOne({
+            where: { verificationToken: token },
+        })
+
+        if (!user) {
+            return res.status(404).json({
+                found: false,
+                message: "Token not found in database",
+                token: token,
+            })
+        }
+
+        // Return user details (except password)
+        return res.json({
+            found: true,
+            message: "Token found in database",
+            token: token,
+            user: {
+                id: user.id,
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                verified: !!user.verified,
+                status: user.status,
+            },
+        })
+    } catch (error) {
+        console.error("Error in debug endpoint:", error)
+        return res.status(500).json({
+            message: "Error checking token",
+            error: error.toString(),
+        })
+    }
 })
 
 // Error handler - must be after all routes
