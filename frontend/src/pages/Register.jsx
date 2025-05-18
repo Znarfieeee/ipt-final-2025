@@ -54,14 +54,14 @@ function Register() {
             navigate("/login", {
                 state: {
                     message: "Registration successful! Please check your email for verification instructions.",
+                    verificationDetails: result.verificationDetails || null,
                 },
             })
         } catch (err) {
             console.error("Registration error:", err)
             setError(err.message || "Registration failed")
-            showToast("error", err.message || "Registration failed")
-        } finally {
             setLoading(false)
+            showToast("error", err.message || "Registration failed")
         }
     }
 

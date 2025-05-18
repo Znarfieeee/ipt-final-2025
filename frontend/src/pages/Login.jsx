@@ -16,6 +16,8 @@ function Login() {
     const [error, setError] = useState("")
     const [message, setMessage] = useState("")
     const [needsVerification, setNeedsVerification] = useState(false)
+    const [verificationLoading, setVerificationLoading] = useState(false)
+    const [verificationDetails, setVerificationDetails] = useState(null)
     const { fakeFetch } = useFakeBackend()
     const { login } = useAuth()
 
@@ -34,6 +36,13 @@ function Login() {
     useEffect(() => {
         if (location.state?.message) {
             setMessage(location.state.message)
+
+            // Set verification details if available
+            if (location.state.verificationDetails) {
+                setVerificationDetails(location.state.verificationDetails)
+                setNeedsVerification(true)
+            }
+
             // Clear the state after displaying the message
             navigate(location.pathname, { replace: true, state: {} })
         }
@@ -44,6 +53,7 @@ function Login() {
         setLoading(true)
         setError("")
         setNeedsVerification(false)
+        setVerificationDetails(null)
 
         try {
             const email = emailRef.current.value
@@ -69,9 +79,14 @@ function Login() {
                     // Check if needs verification
                     if (
                         result.message &&
-                        (result.message.includes("not verified") || result.message.includes("verify your email"))
+                        (result.message.toLowerCase().includes("not verified") ||
+                            result.message.toLowerCase().includes("verify your email") ||
+                            result.message.toLowerCase().includes("verification") ||
+                            result.message.toLowerCase().includes("email is not verified"))
                     ) {
                         setNeedsVerification(true)
+                        // Set a more user-friendly error message
+                        setError("Your account needs to be verified before you can log in.")
                     }
                 }
             } else {
@@ -88,10 +103,14 @@ function Login() {
                     // Check if needs verification
                     if (
                         loginError.message &&
-                        (loginError.message.includes("not verified") ||
-                            loginError.message.includes("verify your email"))
+                        (loginError.message.toLowerCase().includes("not verified") ||
+                            loginError.message.toLowerCase().includes("verify your email") ||
+                            loginError.message.toLowerCase().includes("verification") ||
+                            loginError.message.toLowerCase().includes("email is not verified"))
                     ) {
                         setNeedsVerification(true)
+                        // Set a more user-friendly error message
+                        setError("Your account needs to be verified before you can log in.")
                     }
                 }
             }
@@ -101,8 +120,16 @@ function Login() {
             showToast("error", "Login failed: " + (err.message || "Unknown error"))
 
             // Check if needs verification
-            if (err.message && (err.message.includes("not verified") || err.message.includes("verify your email"))) {
+            if (
+                err.message &&
+                (err.message.toLowerCase().includes("not verified") ||
+                    err.message.toLowerCase().includes("verify your email") ||
+                    err.message.toLowerCase().includes("verification") ||
+                    err.message.toLowerCase().includes("email is not verified"))
+            ) {
                 setNeedsVerification(true)
+                // Set a more user-friendly error message
+                setError("Your account needs to be verified before you can log in.")
             }
         } finally {
             setLoading(false)
@@ -115,19 +142,24 @@ function Login() {
             return
         }
 
-        setLoading(true)
+        setVerificationLoading(true)
         try {
             // Call an API endpoint to resend verification email
-            await backendConnection.resendVerification(emailRef.current.value)
+            const result = await backendConnection.resendVerification(emailRef.current.value)
             setMessage("Verification email has been resent. Please check your email.")
             setError("")
-            setNeedsVerification(false)
+
+            // Set verification details if available in the response
+            if (result.verificationDetails) {
+                setVerificationDetails(result.verificationDetails)
+            }
+
             showToast("success", "Verification email sent")
         } catch (err) {
             setError("Failed to resend verification: " + (err.message || "Unknown error"))
             showToast("error", "Failed to resend verification")
         } finally {
-            setLoading(false)
+            setVerificationLoading(false)
         }
     }
 
@@ -141,24 +173,54 @@ function Login() {
                     </p>
 
                     {message && (
-                        <div className="mt-2 p-2 bg-green-100 border border-green-300 text-green-600 rounded">
+                        <div className="mt-4 p-3 bg-green-100 border border-green-300 text-green-600 rounded">
                             {message}
                         </div>
                     )}
 
                     {error && (
-                        <div className="mt-2 p-2 bg-red-100 border border-red-300 text-red-600 rounded">
-                            {error}
-                            {needsVerification && (
-                                <div className="mt-2">
-                                    <button
-                                        onClick={handleResendVerification}
-                                        className="text-blue-600 hover:text-blue-800 underline"
-                                    >
-                                        Resend verification email
-                                    </button>
-                                </div>
-                            )}
+                        <div className="mt-4 p-3 bg-red-100 border border-red-300 text-red-600 rounded">{error}</div>
+                    )}
+
+                    {needsVerification && (
+                        <div className="mt-4 p-4 bg-yellow-50 border border-yellow-300 text-yellow-800 rounded">
+                            <p className="font-medium mb-2">Email verification required</p>
+                            <p className="text-sm mb-3">
+                                Your account needs to be verified. Please check your email for verification
+                                instructions.
+                            </p>
+                            <LoadingButton
+                                onClick={handleResendVerification}
+                                isLoading={verificationLoading}
+                                loadingText="Sending..."
+                                className="w-full bg-yellow-500 hover:bg-yellow-600 text-white"
+                            >
+                                Resend verification email
+                            </LoadingButton>
+                        </div>
+                    )}
+
+                    {/* Display verification details for testing when available */}
+                    {verificationDetails && (
+                        <div className="mt-4 p-4 bg-blue-50 border border-blue-300 text-blue-800 rounded">
+                            <p className="font-medium mb-2">Verification Details (For Testing)</p>
+                            <div className="text-xs font-mono bg-gray-100 p-3 rounded overflow-auto max-h-48">
+                                <p className="mb-1">
+                                    <strong>Token:</strong> {verificationDetails.verificationToken}
+                                </p>
+                                <p className="mb-1">
+                                    <strong>URL:</strong>{" "}
+                                    <a href={verificationDetails.verificationUrl} className="text-blue-600 underline">
+                                        {verificationDetails.verificationUrl}
+                                    </a>
+                                </p>
+                                <p className="mb-1">
+                                    <strong>API:</strong> {verificationDetails.apiEndpoint}
+                                </p>
+                                <p>
+                                    <strong>Body:</strong> {JSON.stringify(verificationDetails.apiBody)}
+                                </p>
+                            </div>
                         </div>
                     )}
                 </div>
