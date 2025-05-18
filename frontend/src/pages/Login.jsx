@@ -1,5 +1,9 @@
 import React, { useRef, useState, useEffect } from "react"
+<<<<<<< HEAD
 import { Link, useNavigate, useLocation } from "react-router-dom"
+=======
+import { useNavigate } from "react-router-dom"
+>>>>>>> b70771eea3f758d762b4bcf97f2fac0750b298d1
 import { showToast } from "../util/alertHelper"
 import { USE_FAKE_BACKEND } from "../api/config"
 import useFakeBackend from "../api/fakeBackend"
@@ -73,6 +77,17 @@ function Login() {
         }
     }, [location, navigate, bypassLoading])
 
+    // Check if user is already logged in
+    useEffect(() => {
+        const token = localStorage.getItem("token")
+        const userInfo = localStorage.getItem("userInfo")
+
+        if (token && userInfo) {
+            // User is already logged in, redirect to home
+            navigate("/")
+        }
+    }, [navigate])
+
     const handleSubmit = async e => {
         e.preventDefault()
         setLoading(true)
@@ -115,14 +130,53 @@ function Login() {
                 }
             } else {
                 try {
+<<<<<<< HEAD
                     // Use the auth context login function
                     await login(email, password)
                     showToast("success", "Login successful")
                     navigate("/")
+=======
+                    // Use direct fetch for more reliable login
+                    const response = await fetch(`${backendConnection.getBaseUrl()}/api/auth/login`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ email, password }),
+                        credentials: "include", // Important for cookies
+                    })
+
+                    if (!response.ok) {
+                        // Try to get error message
+                        let errorMessage = "Login failed"
+                        try {
+                            const errorData = await response.json()
+                            errorMessage = errorData.message || errorData.error || errorMessage
+                        } catch {
+                            errorMessage = "Server error: " + response.status
+                        }
+                        throw new Error(errorMessage)
+                    }
+
+                    const result = await response.json()
+
+                    // Store authentication info
+                    if (result.token) {
+                        localStorage.setItem("token", result.token)
+                        if (result.user) {
+                            localStorage.setItem("userInfo", JSON.stringify(result.user))
+                        }
+                        showToast("success", "Login successful")
+                        navigate("/")
+                    } else {
+                        throw new Error("Invalid response from server")
+                    }
+>>>>>>> b70771eea3f758d762b4bcf97f2fac0750b298d1
                 } catch (loginError) {
                     console.error("Direct login error:", loginError)
                     setError(loginError.message)
                     showToast("error", loginError.message)
+<<<<<<< HEAD
 
                     // Check if needs verification
                     if (
@@ -136,6 +190,8 @@ function Login() {
                         // Set a more user-friendly error message
                         showToast("error", "Your account needs to be verified before you can log in.")
                     }
+=======
+>>>>>>> b70771eea3f758d762b4bcf97f2fac0750b298d1
                 }
             }
         } catch (err) {
